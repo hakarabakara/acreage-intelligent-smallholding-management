@@ -90,9 +90,6 @@ export function WelcomeDialog() {
               </div>
             </div>
           </div>
-          <div className="bg-muted/30 p-3 rounded-lg text-sm text-muted-foreground text-center">
-            Follow the <strong>Getting Started</strong> checklist on your dashboard to complete your farm setup.
-          </div>
         </div>
         <DialogFooter className="p-6 pt-0 bg-gray-50 dark:bg-neutral-900/50 flex items-center justify-between">
           <div className="text-xs text-muted-foreground flex items-center gap-1">

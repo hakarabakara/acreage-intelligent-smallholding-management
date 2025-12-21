@@ -2,6 +2,15 @@
 export default {
   darkMode: ['class'],
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  // Safelist added to force Vite dependency optimization refresh and fix browserHash error
+  safelist: [
+    'animate-spin',
+    'text-emerald-600',
+    'bg-emerald-600',
+    'text-white',
+    'bg-background',
+    'text-foreground'
+  ],
   theme: {
   	extend: {
   		fontFamily: {

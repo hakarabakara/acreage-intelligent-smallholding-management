@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Zap, Droplets, TrendingUp, Edit, Trash2, Loader2, Sun, Battery, Activity } from 'lucide-react';
+import { Plus, Zap, Droplets, TrendingUp, ArrowDown, ArrowUp, Edit, Trash2, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { ResourceLog } from '@shared/types';
 import { toast } from 'sonner';
@@ -18,19 +18,13 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  ComposedChart,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area
+  LineChart,
+  Line,
+  ComposedChart
 } from 'recharts';
 import { ResourceDialog } from '@/components/resources/ResourceDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { StatCard } from '@/components/ui/stat-card';
-import { EmptyState } from '@/components/ui/empty-state';
-const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 export function ResourcesPage() {
   const [logs, setLogs] = useState<ResourceLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -123,15 +117,6 @@ export function ResourcesPage() {
       };
     });
   }, [logs]);
-  const energySourceData = useMemo(() => {
-    const sources: Record<string, number> = {};
-    logs
-      .filter(l => l.type === 'energy' && l.flow === 'consumption')
-      .forEach(l => {
-        sources[l.source] = (sources[l.source] || 0) + l.amount;
-      });
-    return Object.entries(sources).map(([name, value]) => ({ name, value }));
-  }, [logs]);
   const waterSourceData = useMemo(() => {
     const sources: Record<string, number> = {};
     logs
@@ -140,20 +125,6 @@ export function ResourcesPage() {
         sources[l.source] = (sources[l.source] || 0) + l.amount;
       });
     return Object.entries(sources).map(([name, value]) => ({ name, value }));
-  }, [logs]);
-  const waterTrendData = useMemo(() => {
-    const days = eachDayOfInterval({ start: subDays(new Date(), 13), end: new Date() }); // Last 14 days
-    return days.map(day => {
-      const dayStart = startOfDay(day).getTime();
-      const dayEnd = endOfDay(day).getTime();
-      const amount = logs
-        .filter(l => l.type === 'water' && l.flow === 'consumption' && l.date >= dayStart && l.date <= dayEnd)
-        .reduce((acc, l) => acc + l.amount, 0);
-      return {
-        date: format(day, 'MMM d'),
-        amount
-      };
-    });
   }, [logs]);
   return (
     <AppLayout
@@ -172,27 +143,52 @@ export function ResourcesPage() {
         <div className="space-y-6">
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StatCard
-              title="Energy Consumed"
-              value={`${metrics.energyConsumed.toFixed(1)} kWh`}
-              icon={Zap}
-              loading={isLoading}
-              variant="yellow"
-            />
-            <StatCard
-              title="Water Usage"
-              value={`${metrics.waterConsumed.toLocaleString()} L`}
-              icon={Droplets}
-              loading={isLoading}
-              variant="blue"
-            />
-            <StatCard
-              title="Net Energy"
-              value={`${metrics.netEnergy > 0 ? '+' : ''}${metrics.netEnergy.toFixed(1)} kWh`}
-              icon={TrendingUp}
-              loading={isLoading}
-              variant={metrics.netEnergy >= 0 ? 'emerald' : 'amber'}
-            />
+            <Card className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-100 dark:border-yellow-900">
+              <CardContent className="p-6 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">Energy Consumed</p>
+                  <h3 className="text-2xl font-bold mt-2 text-yellow-900 dark:text-yellow-100">
+                    {metrics.energyConsumed.toFixed(1)} kWh
+                  </h3>
+                </div>
+                <div className="h-10 w-10 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center">
+                  <Zap className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900">
+              <CardContent className="p-6 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Water Usage</p>
+                  <h3 className="text-2xl font-bold mt-2 text-blue-900 dark:text-blue-100">
+                    {metrics.waterConsumed.toLocaleString()} L
+                  </h3>
+                </div>
+                <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                  <Droplets className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className={cn(
+              "border-opacity-50",
+              metrics.netEnergy >= 0
+                ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900"
+                : "bg-orange-50 dark:bg-orange-950/20 border-orange-100 dark:border-orange-900"
+            )}>
+              <CardContent className="p-6 flex items-center justify-between">
+                <div>
+                  <p className={cn("text-sm font-medium", metrics.netEnergy >= 0 ? "text-emerald-600" : "text-orange-600")}>
+                    Net Energy
+                  </p>
+                  <h3 className={cn("text-2xl font-bold mt-2", metrics.netEnergy >= 0 ? "text-emerald-900 dark:text-emerald-100" : "text-orange-900 dark:text-orange-100")}>
+                    {metrics.netEnergy > 0 ? '+' : ''}{metrics.netEnergy.toFixed(1)} kWh
+                  </h3>
+                </div>
+                <div className={cn("h-10 w-10 rounded-full flex items-center justify-center", metrics.netEnergy >= 0 ? "bg-emerald-100 dark:bg-emerald-900" : "bg-orange-100 dark:bg-orange-900")}>
+                  <TrendingUp className={cn("h-5 w-5", metrics.netEnergy >= 0 ? "text-emerald-600" : "text-orange-600")} />
+                </div>
+              </CardContent>
+            </Card>
           </div>
           <Tabs defaultValue="overview" className="space-y-6">
             <TabsList>
@@ -247,183 +243,68 @@ export function ResourcesPage() {
                   <CardTitle>Recent Activity</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {logs.length === 0 ? (
-                    <EmptyState
-                      icon={Activity}
-                      title="No recent activity"
-                      description="Log your energy or water usage to see history here."
-                      action={<Button onClick={() => openDialog()} variant="outline">Log Usage</Button>}
-                    />
-                  ) : (
-                    <div className="space-y-4">
-                      {logs.slice(0, 5).map(log => (
-                        <div key={log.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                          <div className="flex items-center gap-4">
-                            <div className={cn(
-                              "h-10 w-10 rounded-full flex items-center justify-center",
-                              log.type === 'energy' ? "bg-yellow-100 text-yellow-600" : "bg-blue-100 text-blue-600"
-                            )}>
-                              {log.type === 'energy' ? <Zap className="h-5 w-5" /> : <Droplets className="h-5 w-5" />}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium capitalize">{log.source}</span>
-                                <Badge variant="outline" className="text-xs capitalize">
-                                  {log.flow}
-                                </Badge>
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {format(log.date, 'MMM d, yyyy')} • {log.notes || 'No notes'}
-                              </div>
-                            </div>
+                  <div className="space-y-4">
+                    {logs.slice(0, 5).map(log => (
+                      <div key={log.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "h-10 w-10 rounded-full flex items-center justify-center",
+                            log.type === 'energy' ? "bg-yellow-100 text-yellow-600" : "bg-blue-100 text-blue-600"
+                          )}>
+                            {log.type === 'energy' ? <Zap className="h-5 w-5" /> : <Droplets className="h-5 w-5" />}
                           </div>
-                          <div className="flex items-center gap-4">
-                            <span className={cn(
-                              "font-bold",
-                              log.flow === 'production' ? "text-emerald-600" : "text-foreground"
-                            )}>
-                              {log.flow === 'production' ? '+' : ''}{log.amount} {log.unit}
-                            </span>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openDialog(log)}>
-                                  Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteLog(log.id)}>
-                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium capitalize">{log.source}</span>
+                              <Badge variant="outline" className="text-xs capitalize">
+                                {log.flow}
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {format(log.date, 'MMM d, yyyy')} • {log.notes || 'No notes'}
+                            </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                        <div className="flex items-center gap-4">
+                          <span className={cn(
+                            "font-bold",
+                            log.flow === 'production' ? "text-emerald-600" : "text-foreground"
+                          )}>
+                            {log.flow === 'production' ? '+' : ''}{log.amount} {log.unit}
+                          </span>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openDialog(log)}>
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteLog(log.id)}>
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    ))}
+                    {logs.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground">No logs recorded yet.</div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
-            <TabsContent value="energy" className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Sun className="h-4 w-4 text-yellow-500" />
-                      Energy Sources
-                    </CardTitle>
-                    <CardDescription>Consumption breakdown by source</CardDescription>
-                  </CardHeader>
-                  <CardContent className="h-[300px]">
-                    {energySourceData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={energySourceData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={80}
-                            paddingAngle={5}
-                            dataKey="value"
-                          >
-                            {energySourceData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-muted-foreground">
-                        No consumption data available.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Battery className="h-4 w-4 text-emerald-500" />
-                      Net Energy Flow
-                    </CardTitle>
-                    <CardDescription>Production vs Consumption over time</CardDescription>
-                  </CardHeader>
-                  <CardContent className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={energyChartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                        <Tooltip />
-                        <Legend />
-                        <Area type="monotone" dataKey="production" stackId="1" stroke="#10B981" fill="#10B981" fillOpacity={0.2} />
-                        <Area type="monotone" dataKey="consumption" stackId="2" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+            <TabsContent value="energy">
+              <div className="text-center py-12 text-muted-foreground">
+                Detailed energy analytics coming soon. Use the Overview tab for now.
               </div>
             </TabsContent>
-            <TabsContent value="water" className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Droplets className="h-4 w-4 text-blue-500" />
-                      Water Sources
-                    </CardTitle>
-                    <CardDescription>Where your water comes from</CardDescription>
-                  </CardHeader>
-                  <CardContent className="h-[300px]">
-                    {waterSourceData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={waterSourceData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={80}
-                            paddingAngle={5}
-                            dataKey="value"
-                          >
-                            {waterSourceData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-muted-foreground">
-                        No water data available.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Daily Water Consumption</CardTitle>
-                    <CardDescription>Last 14 days usage trend</CardDescription>
-                  </CardHeader>
-                  <CardContent className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={waterTrendData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="date" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                        <Tooltip />
-                        <Bar dataKey="amount" name="Liters" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+            <TabsContent value="water">
+              <div className="text-center py-12 text-muted-foreground">
+                Detailed water analytics coming soon. Use the Overview tab for now.
               </div>
             </TabsContent>
           </Tabs>

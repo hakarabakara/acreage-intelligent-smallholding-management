@@ -25,7 +25,7 @@ import {
   DollarSign,
   Settings,
   Users,
-  Contact as ContactIcon,
+  Contact2,
   ShoppingCart,
   ShieldCheck,
   BarChart3,
@@ -35,20 +35,15 @@ import {
   Search,
   Zap,
   Calendar,
-  Calculator,
-  BookOpen,
-  CloudSun,
-  StickyNote
+  Calculator
 } from 'lucide-react';
 import { useTheme } from '@/hooks/use-theme';
 import { useGlobalSearch } from '@/hooks/use-global-search';
-import { useQuickEntry } from '@/hooks/use-quick-entry';
 export function CommandMenu() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { toggleTheme } = useTheme();
   const { items: searchItems, isLoading } = useGlobalSearch();
-  const { openTask, openHarvest, openNote, openWeather } = useQuickEntry();
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
@@ -69,7 +64,7 @@ export function CommandMenu() {
       case 'task': return <ClipboardList className="mr-2 h-4 w-4" />;
       case 'livestock': return <Tractor className="mr-2 h-4 w-4" />;
       case 'inventory': return <Warehouse className="mr-2 h-4 w-4" />;
-      case 'contact': return <ContactIcon className="mr-2 h-4 w-4" />;
+      case 'contact': return <Contact2 className="mr-2 h-4 w-4" />;
       case 'resource': return <Zap className="mr-2 h-4 w-4" />;
       default: return <Search className="mr-2 h-4 w-4" />;
     }
@@ -103,33 +98,6 @@ export function CommandMenu() {
                 ))}
               </CommandGroup>
             )}
-            <CommandSeparator />
-            <CommandGroup heading="Quick Actions">
-              <CommandItem onSelect={() => runCommand(openTask)}>
-                <Plus className="mr-2 h-4 w-4" />
-                <span>Create Task</span>
-              </CommandItem>
-              <CommandItem onSelect={() => runCommand(openHarvest)}>
-                <Sprout className="mr-2 h-4 w-4" />
-                <span>Log Harvest</span>
-              </CommandItem>
-              <CommandItem onSelect={() => runCommand(openWeather)}>
-                <CloudSun className="mr-2 h-4 w-4" />
-                <span>Log Weather</span>
-              </CommandItem>
-              <CommandItem onSelect={() => runCommand(openNote)}>
-                <StickyNote className="mr-2 h-4 w-4" />
-                <span>Quick Note</span>
-              </CommandItem>
-              <CommandItem onSelect={() => runCommand(() => navigate('/crops'))}>
-                <Sprout className="mr-2 h-4 w-4" />
-                <span>Plan Crop</span>
-              </CommandItem>
-              <CommandItem onSelect={() => runCommand(() => navigate('/finances'))}>
-                <DollarSign className="mr-2 h-4 w-4" />
-                <span>Log Transaction</span>
-              </CommandItem>
-            </CommandGroup>
             <CommandSeparator />
             <CommandGroup heading="Navigation">
               <CommandItem onSelect={() => runCommand(() => navigate('/'))}>
@@ -181,7 +149,7 @@ export function CommandMenu() {
                 <span>Team</span>
               </CommandItem>
               <CommandItem onSelect={() => runCommand(() => navigate('/contacts'))}>
-                <ContactIcon className="mr-2 h-4 w-4" />
+                <Contact2 className="mr-2 h-4 w-4" />
                 <span>Contacts</span>
               </CommandItem>
               <CommandItem onSelect={() => runCommand(() => navigate('/resources'))}>
@@ -192,13 +160,24 @@ export function CommandMenu() {
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 <span>Compliance</span>
               </CommandItem>
-              <CommandItem onSelect={() => runCommand(() => navigate('/knowledge'))}>
-                <BookOpen className="mr-2 h-4 w-4" />
-                <span>Knowledge Base</span>
-              </CommandItem>
               <CommandItem onSelect={() => runCommand(() => navigate('/settings'))}>
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
+              </CommandItem>
+            </CommandGroup>
+            <CommandSeparator />
+            <CommandGroup heading="Quick Actions">
+              <CommandItem onSelect={() => runCommand(() => navigate('/tasks'))}>
+                <Plus className="mr-2 h-4 w-4" />
+                <span>Create Task</span>
+              </CommandItem>
+              <CommandItem onSelect={() => runCommand(() => navigate('/crops'))}>
+                <Plus className="mr-2 h-4 w-4" />
+                <span>Plan Crop</span>
+              </CommandItem>
+              <CommandItem onSelect={() => runCommand(() => navigate('/finances'))}>
+                <Plus className="mr-2 h-4 w-4" />
+                <span>Log Transaction</span>
               </CommandItem>
             </CommandGroup>
             <CommandSeparator />

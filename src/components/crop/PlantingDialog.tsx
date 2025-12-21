@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,18 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sprout, Calendar, Calculator, ListTodo, ArrowRight, ArrowLeft, Check, BookOpen, Info, HelpCircle, Package, DollarSign, Plus, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { Sprout, Calendar, Calculator, ListTodo, ArrowRight, ArrowLeft, Check, BookOpen, Info, HelpCircle } from 'lucide-react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { addDays, format } from 'date-fns';
-import type { Field, Crop, Task, CropVariety, Contact, InventoryItem } from '@shared/types';
+import type { Field, Crop, Task, CropVariety, Contact } from '@shared/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { validateRotation } from '@/lib/knowledge-base';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
 const plantingSchema = z.object({
   name: z.string().min(2, 'Name required'),
   variety: z.string().optional(),
@@ -39,26 +35,17 @@ const plantingSchema = z.object({
   // Financials
   cost: z.string().optional(),
   contactId: z.string().optional(),
-  // Inputs & Labor
-  inputs: z.array(z.object({
-    inventoryId: z.string().min(1, 'Item required'),
-    amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, 'Must be positive'),
-  })).optional(),
-  laborHours: z.string().optional(),
-  hourlyRate: z.string().optional(),
 });
 type PlantingFormValues = z.infer<typeof plantingSchema>;
 interface PlantingDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (crops: Partial<Crop>[], tasks: Partial<Task>[], inputs: { inventoryId: string, amount: number }[]) => Promise<void>;
+  onSave: (crops: Partial<Crop>[], tasks: Partial<Task>[]) => Promise<void>;
   fields: Field[];
   varieties?: CropVariety[];
   contacts?: Contact[];
-  inventory?: InventoryItem[];
-  crops?: Crop[];
 }
-export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = [], contacts = [], inventory = [], crops = [] }: PlantingDialogProps) {
+export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = [], contacts = [] }: PlantingDialogProps) {
   const [step, setStep] = useState(1);
   const [generatedTasks, setGeneratedTasks] = useState<{ type: string; offset: number; selected: boolean }[]>([
     { type: 'Sow / Seed', offset: 0, selected: true },
@@ -87,30 +74,11 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
       successionInterval: '14',
       cost: '',
       contactId: '',
-      inputs: [],
-      laborHours: '0',
-      hourlyRate: '15',
     },
   });
-  const { fields: inputFields, append, remove } = useFieldArray({
-    control: form.control,
-    name: 'inputs',
-  });
   const classification = form.watch('classification');
+  // Update harvest offsets when daysToMaturity changes
   const daysToMaturity = form.watch('daysToMaturity');
-  const selectedFieldId = form.watch('fieldId');
-  const cropName = form.watch('name');
-  // Rotation Validation Logic
-  const rotationAlert = useMemo(() => {
-    if (!selectedFieldId || !cropName || !crops.length) return null;
-    // Find most recent crop for this field
-    const fieldCrops = crops
-        .filter(c => c.fieldId === selectedFieldId)
-        .sort((a, b) => b.plantingDate - a.plantingDate);
-    const lastCrop = fieldCrops[0];
-    if (!lastCrop) return null;
-    return validateRotation(lastCrop.name, cropName);
-  }, [selectedFieldId, cropName, crops]);
   React.useEffect(() => {
     const maturity = Number(daysToMaturity) || 60;
     setGeneratedTasks(prev => prev.map(t => {
@@ -132,18 +100,6 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
     const totalPlants = Math.round(plantsPerFoot * 100 * rows);
     return totalPlants;
   };
-  const calculateTotalCost = () => {
-    const inputs = form.getValues('inputs') || [];
-    const laborHours = Number(form.getValues('laborHours')) || 0;
-    const hourlyRate = Number(form.getValues('hourlyRate')) || 0;
-    const materialCost = inputs.reduce((sum, input) => {
-      const item = inventory.find(i => i.id === input.inventoryId);
-      const cost = item?.unitCost || 0;
-      return sum + (cost * (Number(input.amount) || 0));
-    }, 0);
-    const laborCost = laborHours * hourlyRate;
-    return materialCost + laborCost;
-  };
   const handleLoadTemplate = (varietyId: string) => {
     const template = varieties.find(v => v.id === varietyId);
     if (!template) return;
@@ -159,6 +115,7 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
         offset: t.dayOffset,
         selected: true
       }));
+      // Ensure Harvest is included if not in default tasks
       if (!newTasks.some(t => t.type === 'Harvest')) {
         newTasks.push({ type: 'Harvest', offset: template.daysToMaturity, selected: true });
       }
@@ -172,8 +129,6 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
     const interval = Number(data.successionInterval) || 14;
     const maturity = Number(data.daysToMaturity) || 60;
     const baseDate = new Date(data.plantingDate);
-    const totalCalculatedCost = calculateTotalCost();
-    const finalCost = data.cost ? Number(data.cost) : (totalCalculatedCost > 0 ? totalCalculatedCost : undefined);
     for (let i = 0; i < count; i++) {
       const plantingDate = addDays(baseDate, i * interval);
       const harvestDate = addDays(plantingDate, maturity);
@@ -194,7 +149,7 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
           rowSpacing: Number(data.rowSpacing) || 0,
           rowsPerBed: Number(data.rowsPerBed) || 1,
         },
-        cost: finalCost,
+        cost: data.cost ? Number(data.cost) : undefined,
         contactId: data.contactId || undefined,
       };
       cropsToCreate.push(crop);
@@ -208,11 +163,7 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
         });
       });
     }
-    const inputsToProcess = (data.inputs || []).map(i => ({
-      inventoryId: i.inventoryId,
-      amount: Number(i.amount)
-    }));
-    await onSave(cropsToCreate, tasksToCreate, inputsToProcess);
+    await onSave(cropsToCreate, tasksToCreate);
     onClose();
     setStep(1);
     form.reset();
@@ -220,14 +171,14 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
   return (
     <TooltipProvider>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Planting Wizard</DialogTitle>
             <DialogDescription>Plan your crops, successions, and tasks in one go.</DialogDescription>
           </DialogHeader>
           <div className="flex items-center justify-center mb-6">
             <div className="flex items-center gap-2">
-              {[1, 2, 3, 4, 5].map((s) => (
+              {[1, 2, 3, 4].map((s) => (
                 <div key={s} className={`h-2 w-8 rounded-full transition-colors ${s <= step ? 'bg-emerald-600' : 'bg-muted'}`} />
               ))}
             </div>
@@ -294,20 +245,6 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
                       </FormItem>
                     )} />
                   </div>
-                  {rotationAlert && rotationAlert.status !== 'neutral' && (
-                    <Alert className={cn(
-                      "mt-2",
-                      rotationAlert.status === 'warning' ? "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20" : "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20"
-                    )}>
-                      {rotationAlert.status === 'warning' ? <AlertTriangle className="h-4 w-4 text-amber-600" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-                      <AlertTitle className={rotationAlert.status === 'warning' ? "text-amber-800 dark:text-amber-400" : "text-emerald-800 dark:text-emerald-400"}>
-                        {rotationAlert.status === 'warning' ? 'Rotation Warning' : 'Rotation Recommendation'}
-                      </AlertTitle>
-                      <AlertDescription className={rotationAlert.status === 'warning' ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"}>
-                        {rotationAlert.message}
-                      </AlertDescription>
-                    </Alert>
-                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="plantingDate" render={({ field }) => (
                       <FormItem><FormLabel>Start Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
@@ -349,6 +286,28 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
                       </FormItem>
                     )} />
                   )}
+                  <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                    <FormField control={form.control} name="cost" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cost per Planting ($)</FormLabel>
+                        <FormControl><Input type="number" placeholder="0.00" {...field} /></FormControl>
+                        <p className="text-[10px] text-muted-foreground">Generates an expense transaction in the ledger.</p>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="contactId" render={({ field }) => (
+                      <FormItem><FormLabel>Supplier (Optional)</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            {contacts.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
                 </div>
               )}
               {/* STEP 2: SPACING */}
@@ -400,90 +359,8 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
                   </Card>
                 </div>
               )}
-              {/* STEP 3: INPUTS & COSTS */}
+              {/* STEP 3: SUCCESSION */}
               {step === 3 && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                  <div className="flex items-center gap-2 mb-2 text-emerald-700 dark:text-emerald-400">
-                    <DollarSign className="h-5 w-5" />
-                    <h3 className="font-semibold">Inputs & Costs</h3>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <Label>Material Inputs (Seeds, Fertilizer)</Label>
-                      <Button type="button" variant="outline" size="sm" onClick={() => append({ inventoryId: '', amount: '' })}>
-                        <Plus className="h-3 w-3 mr-1" /> Add Input
-                      </Button>
-                    </div>
-                    <ScrollArea className="h-[150px] border rounded-md p-2">
-                      {inputFields.map((field, index) => {
-                        const selectedItem = inventory.find(i => i.id === form.getValues(`inputs.${index}.inventoryId`));
-                        const cost = selectedItem?.unitCost ? selectedItem.unitCost * (Number(form.getValues(`inputs.${index}.amount`)) || 0) : 0;
-                        return (
-                          <div key={field.id} className="flex gap-2 items-start mb-2">
-                            <FormField
-                              control={form.control}
-                              name={`inputs.${index}.inventoryId`}
-                              render={({ field }) => (
-                                <FormItem className="flex-1">
-                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger></FormControl>
-                                    <SelectContent>
-                                      {inventory.map(i => (
-                                        <SelectItem key={i.id} value={i.id}>
-                                          {i.name} ({i.quantity} {i.unit}) {i.unitCost ? `- ${i.unitCost}/unit` : ''}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name={`inputs.${index}.amount`}
-                              render={({ field }) => (
-                                <FormItem className="w-24">
-                                  <FormControl><Input type="number" placeholder="Qty" {...field} /></FormControl>
-                                </FormItem>
-                              )}
-                            />
-                            <div className="w-20 pt-2 text-sm text-right text-muted-foreground">
-                              ${cost.toFixed(2)}
-                            </div>
-                            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        );
-                      })}
-                      {inputFields.length === 0 && (
-                        <div className="text-center py-4 text-muted-foreground text-sm">No inputs added.</div>
-                      )}
-                    </ScrollArea>
-                    <div className="grid grid-cols-2 gap-4 pt-2 border-t">
-                      <FormField control={form.control} name="laborHours" render={({ field }) => (
-                        <FormItem><FormLabel>Est. Labor Hours</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
-                      )} />
-                      <FormField control={form.control} name="hourlyRate" render={({ field }) => (
-                        <FormItem><FormLabel>Hourly Rate ($)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
-                      )} />
-                    </div>
-                    <div className="bg-muted/50 p-3 rounded-lg flex justify-between items-center">
-                      <span className="font-medium">Total Estimated Cost:</span>
-                      <span className="text-xl font-bold text-emerald-600">${calculateTotalCost().toFixed(2)}</span>
-                    </div>
-                    <FormField control={form.control} name="cost" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Override Total Cost (Optional)</FormLabel>
-                        <FormControl><Input type="number" placeholder="Manual override..." {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-                  </div>
-                </div>
-              )}
-              {/* STEP 4: SUCCESSION */}
-              {step === 4 && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
                   <div className="flex items-center gap-2 mb-2 text-emerald-700 dark:text-emerald-400">
                     <Calendar className="h-5 w-5" />
@@ -527,8 +404,8 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
                   )}
                 </div>
               )}
-              {/* STEP 5: TASKS */}
-              {step === 5 && (
+              {/* STEP 4: TASKS */}
+              {step === 4 && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
                   <div className="flex items-center gap-2 mb-2 text-emerald-700 dark:text-emerald-400">
                     <ListTodo className="h-5 w-5" />
@@ -573,7 +450,7 @@ export function PlantingDialog({ isOpen, onClose, onSave, fields, varieties = []
                 <Button type="button" variant="outline" onClick={handleBack} disabled={step === 1}>
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back
                 </Button>
-                {step < 5 ? (
+                {step < 4 ? (
                   <Button type="button" onClick={handleNext}>
                     Next <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>

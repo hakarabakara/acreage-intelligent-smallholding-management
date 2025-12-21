@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Contact as ContactIcon, Mail, Phone, MapPin, MoreHorizontal, Trash2, Edit, Loader2, Briefcase, DollarSign } from 'lucide-react';
+import { Plus, Search, Contact as ContactIcon, Mail, Phone, MapPin, MoreHorizontal, Trash2, Edit, Loader2, Briefcase } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { Contact } from '@shared/types';
 import { toast } from 'sonner';
@@ -16,8 +16,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useFormatting } from '@/hooks/use-formatting';
-import { EmptyState } from '@/components/ui/empty-state';
 const contactSchema = z.object({
   name: z.string().min(2, 'Name required'),
   type: z.enum(['laborer', 'service', 'supplier', 'other']),
@@ -26,8 +24,6 @@ const contactSchema = z.object({
   address: z.string().optional(),
   rates: z.string().optional(),
   notes: z.string().optional(),
-  defaultRate: z.string().refine((val) => !val || (!isNaN(Number(val)) && Number(val) >= 0), 'Must be a non-negative number').optional(),
-  rateUnit: z.enum(['hourly', 'daily', 'fixed']).optional(),
 });
 type ContactFormValues = z.infer<typeof contactSchema>;
 export function ContactsPage() {
@@ -36,7 +32,6 @@ export function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-  const { formatCurrency } = useFormatting();
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
     defaultValues: {
@@ -47,8 +42,6 @@ export function ContactsPage() {
       address: '',
       rates: '',
       notes: '',
-      defaultRate: '',
-      rateUnit: 'hourly',
     },
   });
   const fetchData = async () => {
@@ -76,8 +69,6 @@ export function ContactsPage() {
         address: contact.address || '',
         rates: contact.rates || '',
         notes: contact.notes || '',
-        defaultRate: contact.defaultRate?.toString() || '',
-        rateUnit: contact.rateUnit || 'hourly',
       });
     } else {
       setSelectedContact(null);
@@ -89,29 +80,23 @@ export function ContactsPage() {
         address: '',
         rates: '',
         notes: '',
-        defaultRate: '',
-        rateUnit: 'hourly',
       });
     }
     setIsDialogOpen(true);
   };
   const onSubmit = async (data: ContactFormValues) => {
     try {
-      const payload = {
-        ...data,
-        defaultRate: data.defaultRate ? Number(data.defaultRate) : undefined,
-      };
       if (selectedContact) {
         const updated = await api<Contact>(`/api/contacts/${selectedContact.id}`, {
           method: 'PUT',
-          body: JSON.stringify(payload),
+          body: JSON.stringify(data),
         });
         setContacts(prev => prev.map(c => c.id === updated.id ? updated : c));
         toast.success('Contact updated');
       } else {
         const created = await api<Contact>('/api/contacts', {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: JSON.stringify(data),
         });
         setContacts(prev => [...prev, created]);
         toast.success('Contact created');
@@ -131,8 +116,8 @@ export function ContactsPage() {
       toast.error('Failed to delete contact');
     }
   };
-  const filteredContacts = contacts.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredContacts = contacts.filter(c =>
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.type.toLowerCase().includes(searchQuery.toLowerCase())
   );
   return (
@@ -159,13 +144,6 @@ export function ContactsPage() {
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
         </div>
-      ) : filteredContacts.length === 0 ? (
-        <EmptyState
-          icon={ContactIcon}
-          title="No contacts found"
-          description="Add suppliers, contractors, or service providers."
-          action={<Button onClick={() => openDialog()} variant="outline">Add Contact</Button>}
-        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredContacts.map((contact) => (
@@ -201,13 +179,7 @@ export function ContactsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                {contact.defaultRate && (
-                  <div className="p-2 bg-emerald-50 dark:bg-emerald-950/20 rounded text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
-                    <DollarSign className="h-3 w-3" />
-                    Rate: {formatCurrency(contact.defaultRate)} / {contact.rateUnit}
-                  </div>
-                )}
-                {contact.rates && !contact.defaultRate && (
+                {contact.rates && (
                   <div className="p-2 bg-muted/50 rounded text-xs font-medium">
                     Rates: {contact.rates}
                   </div>
@@ -329,63 +301,19 @@ export function ContactsPage() {
                   </FormItem>
                 )}
               />
-              {/* Labor Rates Section */}
-              <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
-                <h4 className="text-sm font-medium flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-emerald-600" />
-                  Labor Rates (Optional)
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="defaultRate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Default Rate</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="0.00" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="rateUnit"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Unit</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="hourly">Hourly</SelectItem>
-                            <SelectItem value="daily">Daily</SelectItem>
-                            <SelectItem value="fixed">Fixed</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={form.control}
-                  name="rates"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Additional Rate Notes</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. Overtime is 1.5x" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="rates"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Rates / Pricing</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. $50/hr or Fixed Bid" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="notes"

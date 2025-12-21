@@ -1,16 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { CloudRain, Sun, Cloud, Wind, Droplets, CloudLightning, Snowflake, Plus, Edit, Radio } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { CloudRain, Sun, Cloud, Wind, Droplets, CloudLightning, Snowflake, Plus, Edit } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api-client';
 import type { WeatherLog } from '@shared/types';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, subDays } from 'date-fns';
 import { WeatherLogDialog } from '@/components/weather/WeatherLogDialog';
 import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
-import { useFarmStore } from '@/lib/farm-store';
-import { getWeatherForecast } from '@/lib/weather-service';
 interface WeatherWidgetProps {
   className?: string;
 }
@@ -19,8 +16,6 @@ export function WeatherWidget({ className }: WeatherWidgetProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedLog, setSelectedLog] = useState<WeatherLog | null>(null);
-  const [liveWeather, setLiveWeather] = useState<Partial<WeatherLog> | null>(null);
-  const settings = useFarmStore((state) => state.settings);
   const fetchData = async () => {
     try {
       setIsLoading(true);
@@ -33,57 +28,9 @@ export function WeatherWidget({ className }: WeatherWidgetProps) {
       setIsLoading(false);
     }
   };
-  const fetchLiveWeather = useCallback(async () => {
-    // 1. Try Farm Settings Location
-    if (settings?.coordinates) {
-      try {
-        const data = await getWeatherForecast(settings.coordinates.lat, settings.coordinates.lng);
-        setLiveWeather({
-          condition: data.current.condition,
-          tempHigh: Math.round(data.daily.tempHigh),
-          tempLow: Math.round(data.daily.tempLow),
-          humidity: data.current.humidity,
-          windSpeed: data.current.windSpeed,
-          precipitation: data.daily.precipitation
-        });
-        return;
-      } catch (error) {
-        console.error('Failed to fetch weather for saved location', error);
-      }
-    }
-    // 2. Fallback to Browser Geolocation
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      try {
-        const { latitude, longitude } = position.coords;
-        const data = await getWeatherForecast(latitude, longitude);
-        setLiveWeather({
-          condition: data.current.condition,
-          tempHigh: Math.round(data.daily.tempHigh),
-          tempLow: Math.round(data.daily.tempLow),
-          humidity: data.current.humidity,
-          windSpeed: data.current.windSpeed,
-          precipitation: data.daily.precipitation
-        });
-      } catch (error) {
-        console.error('Failed to fetch live weather', error);
-      }
-    }, (err) => {
-      console.warn('Geolocation denied or failed', err);
-    });
-  }, [settings?.coordinates]);
   useEffect(() => {
     fetchData();
   }, []);
-  // Fetch live weather if no log for today
-  useEffect(() => {
-    const today = new Date();
-    const hasTodayLog = logs.some(l => isSameDay(l.date, today));
-    // Only fetch live weather if we don't have a manual log AND we haven't fetched it yet (or settings changed)
-    if (!hasTodayLog && !isLoading) {
-      fetchLiveWeather();
-    }
-  }, [logs, isLoading, settings?.coordinates, fetchLiveWeather]);
   const handleSaveLog = async (data: Partial<WeatherLog>) => {
     try {
       if (selectedLog) {
@@ -115,8 +62,6 @@ export function WeatherWidget({ className }: WeatherWidgetProps) {
   const recentLogs = logs
     .filter(l => !isSameDay(l.date, today))
     .slice(0, 3);
-  const displayData = todayLog || liveWeather;
-  const isLive = !todayLog && !!liveWeather;
   const getWeatherIcon = (condition: string, className?: string) => {
     switch (condition) {
       case 'sunny': return <Sun className={className} />;
@@ -141,12 +86,11 @@ export function WeatherWidget({ className }: WeatherWidgetProps) {
   };
   return (
     <>
-      <Card className={cn("overflow-hidden border-none shadow-lg bg-gradient-to-br text-white transition-colors duration-500", getBackgroundGradient(displayData?.condition), className)}>
+      <Card className={cn("overflow-hidden border-none shadow-lg bg-gradient-to-br text-white transition-colors duration-500", getBackgroundGradient(todayLog?.condition), className)}>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
-            {getWeatherIcon(displayData?.condition || 'sunny', "h-4 w-4")}
-            {todayLog ? 'Today\'s Weather' : 'Live Forecast'}
-            {isLive && <Badge variant="secondary" className="bg-white/20 text-white border-none text-[10px] h-5 px-1.5"><Radio className="h-3 w-3 mr-1 animate-pulse" /> Live</Badge>}
+            {getWeatherIcon(todayLog?.condition || 'sunny', "h-4 w-4")} 
+            {todayLog ? 'Today\'s Weather' : 'Weather'}
           </CardTitle>
           {todayLog ? (
             <Button variant="ghost" size="icon" className="h-6 w-6 text-white hover:bg-white/20" onClick={() => openDialog(todayLog)}>
@@ -159,33 +103,33 @@ export function WeatherWidget({ className }: WeatherWidgetProps) {
           )}
         </CardHeader>
         <CardContent>
-          {displayData ? (
+          {todayLog ? (
             <>
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <div className="text-5xl font-bold tracking-tighter">
-                    {displayData.tempHigh ? `${displayData.tempHigh}°` : '--'}
+                    {todayLog.tempHigh ? `${todayLog.tempHigh}°` : '--'}
                   </div>
-                  <div className="text-white/90 font-medium mt-1 capitalize">{displayData.condition}</div>
+                  <div className="text-white/90 font-medium mt-1 capitalize">{todayLog.condition}</div>
                 </div>
-                {getWeatherIcon(displayData.condition || 'sunny', "h-16 w-16 text-white/50")}
+                {getWeatherIcon(todayLog.condition, "h-16 w-16 text-white/50")}
               </div>
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="flex items-center gap-2 text-sm text-white/90 bg-white/10 rounded-lg p-2">
                   <Droplets className="h-4 w-4" />
-                  <span>Humidity: {displayData.humidity ? `${displayData.humidity}%` : '--'}</span>
+                  <span>Humidity: {todayLog.humidity ? `${todayLog.humidity}%` : '--'}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-white/90 bg-white/10 rounded-lg p-2">
                   <Wind className="h-4 w-4" />
-                  <span>Wind: {displayData.windSpeed ? `${displayData.windSpeed}mph` : '--'}</span>
+                  <span>Wind: {todayLog.windSpeed ? `${todayLog.windSpeed}mph` : '--'}</span>
                 </div>
               </div>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Sun className="h-12 w-12 text-white/50 mb-2" />
-              <p className="text-white/90 font-medium">No weather data</p>
-              <p className="text-xs text-white/70 mb-4">Log manually or enable location.</p>
+              <p className="text-white/90 font-medium">No weather logged today</p>
+              <p className="text-xs text-white/70 mb-4">Keep track of your farm's climate.</p>
               <Button variant="secondary" className="bg-white text-blue-600 hover:bg-white/90" onClick={() => openDialog()}>
                 Log Now
               </Button>

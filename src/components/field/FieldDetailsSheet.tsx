@@ -10,11 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { Sprout, Beaker, History, Tractor, Save, Plus, AlertTriangle, Layers, Lightbulb, Info, ClipboardList, Calendar } from 'lucide-react';
-import type { Field, Crop, Amendment, Task } from '@shared/types';
+import { Sprout, Beaker, History, Tractor, Save, Plus, AlertTriangle, Layers } from 'lucide-react';
+import type { Field, Crop, Amendment } from '@shared/types';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { getRotationSuggestions, getFieldRestRecommendation } from '@/lib/knowledge-base';
 interface FieldDetailsSheetProps {
   field: Field | null;
   isOpen: boolean;
@@ -22,9 +21,8 @@ interface FieldDetailsSheetProps {
   onUpdate: (id: string, data: Partial<Field>) => Promise<void>;
   crops: Crop[];
   allFields?: Field[];
-  tasks?: Task[];
 }
-export function FieldDetailsSheet({ field, isOpen, onClose, onUpdate, crops, allFields = [], tasks = [] }: FieldDetailsSheetProps) {
+export function FieldDetailsSheet({ field, isOpen, onClose, onUpdate, crops, allFields = [] }: FieldDetailsSheetProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [isSaving, setIsSaving] = useState(false);
   // Local state for form inputs
@@ -120,11 +118,6 @@ export function FieldDetailsSheet({ field, isOpen, onClose, onUpdate, crops, all
   };
   const fieldCrops = crops.filter(c => c.fieldId === field.id).sort((a, b) => b.plantingDate - a.plantingDate);
   const availableParents = allFields.filter(f => f.id !== field.id); // Simple cycle prevention (self)
-  const fieldTasks = tasks.filter(t => t.relatedEntityId === field.id).sort((a, b) => (b.dueDate || 0) - (a.dueDate || 0));
-  // Rotation Logic
-  const lastCrop = fieldCrops[0];
-  const rotationSuggestions = lastCrop ? getRotationSuggestions(lastCrop.name) : [];
-  const restRecommendation = getFieldRestRecommendation(field.soilProfile);
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
@@ -139,11 +132,10 @@ export function FieldDetailsSheet({ field, isOpen, onClose, onUpdate, crops, all
           </SheetDescription>
         </SheetHeader>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="soil">Soil</TabsTrigger>
             <TabsTrigger value="crops">Crops</TabsTrigger>
-            <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="grazing">Grazing</TabsTrigger>
           </TabsList>
           {/* OVERVIEW TAB */}
@@ -179,8 +171,8 @@ export function FieldDetailsSheet({ field, isOpen, onClose, onUpdate, crops, all
               <Label className="flex items-center gap-2">
                 <Layers className="h-4 w-4" /> Parent Field / Parcel
               </Label>
-              <Select
-                value={field.parentId || 'none'}
+              <Select 
+                value={field.parentId || 'none'} 
                 onValueChange={handleParentChange}
                 disabled={isSaving}
               >
@@ -210,17 +202,15 @@ export function FieldDetailsSheet({ field, isOpen, onClose, onUpdate, crops, all
                 onCheckedChange={togglePermanentBed}
               />
             </div>
-            {restRecommendation && (
-              <div className="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-lg border border-amber-200 dark:border-amber-900">
-                <h4 className="text-sm font-medium mb-2 flex items-center gap-2 text-amber-800 dark:text-amber-400">
-                  <AlertTriangle className="h-4 w-4" />
-                  Soil Alert
-                </h4>
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  {restRecommendation}
-                </p>
-              </div>
-            )}
+            <div className="bg-muted/30 p-4 rounded-lg border border-dashed">
+              <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                Recommendations
+              </h4>
+              <p className="text-sm text-muted-foreground">
+                Based on your last soil test, nitrogen levels are low. Consider adding compost or a cover crop before the next planting season.
+              </p>
+            </div>
           </TabsContent>
           {/* SOIL TAB */}
           <TabsContent value="soil" className="space-y-6 mt-4">
@@ -296,20 +286,20 @@ export function FieldDetailsSheet({ field, isOpen, onClose, onUpdate, crops, all
               {/* Add Amendment Form */}
               <div className="bg-muted/30 p-3 rounded-lg mb-4 space-y-3">
                 <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="Type (e.g. Compost)"
+                  <Input 
+                    placeholder="Type (e.g. Compost)" 
                     value={amendmentData.type}
                     onChange={(e) => setAmendmentData({...amendmentData, type: e.target.value})}
                   />
                   <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      placeholder="Amount"
+                    <Input 
+                      type="number" 
+                      placeholder="Amount" 
                       value={amendmentData.amount}
                       onChange={(e) => setAmendmentData({...amendmentData, amount: e.target.value})}
                     />
-                    <Input
-                      className="w-16"
+                    <Input 
+                      className="w-16" 
                       value={amendmentData.unit}
                       onChange={(e) => setAmendmentData({...amendmentData, unit: e.target.value})}
                     />
@@ -343,48 +333,13 @@ export function FieldDetailsSheet({ field, isOpen, onClose, onUpdate, crops, all
             </div>
           </TabsContent>
           {/* CROPS TAB */}
-          <TabsContent value="crops" className="mt-4 space-y-4">
-            {/* Rotation Advisor */}
-            <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2 text-blue-800 dark:text-blue-300">
-                  <Lightbulb className="h-4 w-4" /> Rotation Advisor
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {lastCrop ? (
-                  <div className="space-y-3">
-                    <p className="text-sm text-blue-700 dark:text-blue-400">
-                      Last crop: <span className="font-medium">{lastCrop.name}</span> ({lastCrop.variety})
-                    </p>
-                    {rotationSuggestions.map((suggestion, idx) => (
-                      <div key={idx} className={cn(
-                        "text-sm p-2 rounded border",
-                        suggestion.type === 'recommendation' ? "bg-emerald-50 border-emerald-200 text-emerald-800" :
-                        suggestion.type === 'warning' ? "bg-amber-50 border-amber-200 text-amber-800" :
-                        "bg-white border-slate-200 text-slate-700"
-                      )}>
-                        <div className="font-medium flex items-center gap-2">
-                          {suggestion.type === 'warning' ? <AlertTriangle className="h-3 w-3" /> : <Info className="h-3 w-3" />}
-                          {suggestion.message}
-                        </div>
-                        <div className="text-xs mt-1 opacity-90">{suggestion.reason}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No crop history found. Start by planting a crop to get rotation suggestions.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="crops" className="mt-4">
             <div className="flex items-center justify-between mb-4">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <History className="h-4 w-4" /> Rotation History
               </h4>
             </div>
-            <ScrollArea className="h-[300px] pr-4">
+            <ScrollArea className="h-[400px] pr-4">
               <div className="space-y-4">
                 {fieldCrops.length > 0 ? (
                   fieldCrops.map((crop, index) => (
@@ -410,47 +365,6 @@ export function FieldDetailsSheet({ field, isOpen, onClose, onUpdate, crops, all
                     No crop history available.
                   </div>
                 )}
-              </div>
-            </ScrollArea>
-          </TabsContent>
-          {/* TASKS TAB */}
-          <TabsContent value="tasks" className="mt-4 space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium flex items-center gap-2">
-                <ClipboardList className="h-4 w-4" /> Operational History
-              </h4>
-            </div>
-            <ScrollArea className="h-[400px] border rounded-md">
-              <div className="p-4 space-y-3">
-                {fieldTasks.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground text-sm">
-                    No tasks linked to this field.
-                  </div>
-                )}
-                {fieldTasks.map((task) => (
-                  <div key={task.id} className="flex items-center justify-between p-3 bg-card border rounded-lg hover:shadow-sm transition-shadow">
-                    <div className="flex-1 min-w-0 mr-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={cn("font-medium truncate", task.status === 'done' && "line-through text-muted-foreground")}>
-                          {task.title}
-                        </span>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
-                          {task.priority}
-                        </Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-2">
-                        {task.dueDate && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {format(task.dueDate, 'MMM d')}
-                          </span>
-                        )}
-                        <span>•</span>
-                        <span className="capitalize">{task.status}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
               </div>
             </ScrollArea>
           </TabsContent>

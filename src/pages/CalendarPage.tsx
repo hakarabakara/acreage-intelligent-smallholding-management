@@ -9,8 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Loader2, Calendar as CalendarIcon, Filter, ExternalLink } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import type { Task, Crop, ComplianceLog, Livestock, HealthLog, ResourceLog, WeatherLog, User } from '@shared/types';
-import { format, eachDayOfInterval } from 'date-fns';
+import type { Task, Crop, ComplianceLog, Livestock, HealthLog, ResourceLog, WeatherLog } from '@shared/types';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { WeatherLogDialog } from '@/components/weather/WeatherLogDialog';
@@ -31,13 +31,12 @@ export function CalendarPage() {
     livestock: true,
     resource: false,
     weather: true,
-    leave: true,
   });
   const fetchData = async () => {
     try {
       setIsLoading(true);
       // Fetch data with higher limits to populate calendar
-      const [tasksRes, cropsRes, complianceRes, livestockRes, healthRes, resourcesRes, weatherRes, usersRes] = await Promise.all([
+      const [tasksRes, cropsRes, complianceRes, livestockRes, healthRes, resourcesRes, weatherRes] = await Promise.all([
         api<{ items: Task[] }>('/api/tasks?limit=1000'),
         api<{ items: Crop[] }>('/api/crops?limit=1000'),
         api<{ items: ComplianceLog[] }>('/api/compliance?limit=1000'),
@@ -45,7 +44,6 @@ export function CalendarPage() {
         api<{ items: HealthLog[] }>('/api/health-logs?limit=1000'),
         api<{ items: ResourceLog[] }>('/api/resources?limit=1000'),
         api<{ items: WeatherLog[] }>('/api/weather?limit=1000'),
-        api<{ items: User[] }>('/api/users?limit=1000'),
       ]);
       const newEvents: CalendarEvent[] = [];
       // 1. Tasks
@@ -57,8 +55,8 @@ export function CalendarPage() {
             date: task.dueDate,
             type: 'task',
             status: task.status,
-            color: task.priority === 'urgent' || task.priority === 'high' 
-              ? 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300' 
+            color: task.priority === 'urgent' || task.priority === 'high'
+              ? 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300'
               : 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300',
             details: `Status: ${task.status} • Priority: ${task.priority}`,
             originalData: task
@@ -135,7 +133,7 @@ export function CalendarPage() {
       resourcesRes.items.forEach(log => {
         newEvents.push({
           id: log.id,
-          title: `${log.type === 'energy' ? '⚡' : '💧'} ${log.amount} ${log.unit}`,
+          title: `${log.type === 'energy' ? '���' : '💧'} ${log.amount} ${log.unit}`,
           date: log.date,
           type: 'resource',
           color: 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300',
@@ -154,29 +152,6 @@ export function CalendarPage() {
           details: `High: ${log.tempHigh || '-'}° • Low: ${log.tempLow || '-'}° • Precip: ${log.precipitation || 0}"`,
           originalData: log
         });
-      });
-      // 8. Staff Leave
-      usersRes.items.forEach(user => {
-        if (user.leaveRecords) {
-          user.leaveRecords.forEach(record => {
-            try {
-              const days = eachDayOfInterval({ start: record.startDate, end: record.endDate });
-              days.forEach(day => {
-                newEvents.push({
-                  id: `leave-${user.id}-${record.id}-${day.getTime()}`,
-                  title: `${user.name}: ${record.type}`,
-                  date: day.getTime(),
-                  type: 'leave',
-                  color: 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300',
-                  details: record.notes || 'On Leave',
-                  originalData: record
-                });
-              });
-            } catch (e) {
-              console.error('Invalid leave interval', e);
-            }
-          });
-        }
       });
       setEvents(newEvents);
     } catch (error) {
@@ -197,7 +172,6 @@ export function CalendarPage() {
       if ((e.type === 'livestock' || e.type === 'health') && !filters.livestock) return false;
       if (e.type === 'resource' && !filters.resource) return false;
       if (e.type === 'weather' && !filters.weather) return false;
-      if (e.type === 'leave' && !filters.leave) return false;
       return true;
     });
   }, [events, filters]);
@@ -228,33 +202,13 @@ export function CalendarPage() {
     if (!selectedEvent) return;
     setIsDialogOpen(false);
     switch (selectedEvent.type) {
-      case 'task': 
-        navigate(`/tasks?taskId=${selectedEvent.originalData.id}`); 
-        break;
+      case 'task': navigate('/tasks'); break;
       case 'crop-plant':
-      case 'crop-harvest': 
-        navigate(`/crops?cropId=${selectedEvent.originalData.id}`); 
-        break;
-      case 'compliance': 
-        navigate('/compliance'); // Compliance page doesn't support deep linking yet
-        break;
+      case 'crop-harvest': navigate('/crops'); break;
+      case 'compliance': navigate('/compliance'); break;
       case 'livestock':
-      case 'health': {
-        // For health logs, we link to the livestock profile
-        const livestockId = selectedEvent.type === 'health' 
-          ? selectedEvent.originalData.livestockId 
-          : selectedEvent.originalData.id;
-        navigate(`/livestock?livestockId=${livestockId}`); 
-        break;
-      }
-      case 'resource': 
-        navigate('/resources'); 
-        break;
-      case 'leave': 
-        navigate('/team'); 
-        break;
-      default:
-        break;
+      case 'health': navigate('/livestock'); break;
+      case 'resource': navigate('/resources'); break;
     }
   };
   return (
@@ -270,8 +224,8 @@ export function CalendarPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="filter-task" 
+                <Checkbox
+                  id="filter-task"
                   checked={filters.task}
                   onCheckedChange={(c) => setFilters(prev => ({ ...prev, task: !!c }))}
                 />
@@ -280,8 +234,8 @@ export function CalendarPage() {
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="filter-crop" 
+                <Checkbox
+                  id="filter-crop"
                   checked={filters.crop}
                   onCheckedChange={(c) => setFilters(prev => ({ ...prev, crop: !!c }))}
                 />
@@ -290,8 +244,8 @@ export function CalendarPage() {
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="filter-compliance" 
+                <Checkbox
+                  id="filter-compliance"
                   checked={filters.compliance}
                   onCheckedChange={(c) => setFilters(prev => ({ ...prev, compliance: !!c }))}
                 />
@@ -300,8 +254,8 @@ export function CalendarPage() {
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="filter-livestock" 
+                <Checkbox
+                  id="filter-livestock"
                   checked={filters.livestock}
                   onCheckedChange={(c) => setFilters(prev => ({ ...prev, livestock: !!c }))}
                 />
@@ -310,8 +264,8 @@ export function CalendarPage() {
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="filter-weather" 
+                <Checkbox
+                  id="filter-weather"
                   checked={filters.weather}
                   onCheckedChange={(c) => setFilters(prev => ({ ...prev, weather: !!c }))}
                 />
@@ -320,23 +274,13 @@ export function CalendarPage() {
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="filter-resource" 
+                <Checkbox
+                  id="filter-resource"
                   checked={filters.resource}
                   onCheckedChange={(c) => setFilters(prev => ({ ...prev, resource: !!c }))}
                 />
                 <Label htmlFor="filter-resource" className="flex items-center gap-2 cursor-pointer">
                   <span className="h-2 w-2 rounded-full bg-slate-500" /> Resources
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="filter-leave" 
-                  checked={filters.leave}
-                  onCheckedChange={(c) => setFilters(prev => ({ ...prev, leave: !!c }))}
-                />
-                <Label htmlFor="filter-leave" className="flex items-center gap-2 cursor-pointer">
-                  <span className="h-2 w-2 rounded-full bg-gray-500" /> Staff Leave
                 </Label>
               </div>
             </CardContent>
@@ -358,9 +302,9 @@ export function CalendarPage() {
               <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
             </div>
           ) : (
-            <CalendarGrid 
-              events={filteredEvents} 
-              currentDate={currentDate} 
+            <CalendarGrid
+              events={filteredEvents}
+              currentDate={currentDate}
               onDateChange={setCurrentDate}
               onEventClick={handleEventClick}
             />

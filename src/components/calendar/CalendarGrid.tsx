@@ -26,7 +26,7 @@ export interface CalendarEvent {
   id: string;
   title: string;
   date: number;
-  type: 'task' | 'crop-plant' | 'crop-harvest' | 'compliance' | 'livestock' | 'health' | 'resource' | 'weather' | 'leave';
+  type: 'task' | 'crop-plant' | 'crop-harvest' | 'compliance' | 'livestock' | 'health' | 'resource' | 'weather';
   color: string;
   status?: string;
   details?: string;

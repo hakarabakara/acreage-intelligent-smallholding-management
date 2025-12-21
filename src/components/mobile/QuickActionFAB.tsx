@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Sprout, ClipboardList, CloudSun, StickyNote } from 'lucide-react';
+import { Plus, Sprout, ClipboardList, CloudSun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useQuickEntry } from '@/hooks/use-quick-entry';
 import { cn } from '@/lib/utils';
@@ -9,7 +9,6 @@ export function QuickActionFAB() {
   const openHarvest = useQuickEntry((state) => state.openHarvest);
   const openTask = useQuickEntry((state) => state.openTask);
   const openWeather = useQuickEntry((state) => state.openWeather);
-  const openNote = useQuickEntry((state) => state.openNote);
   const toggleOpen = () => setIsOpen(!isOpen);
   const handleAction = (action: () => void) => {
     action();
@@ -20,22 +19,6 @@ export function QuickActionFAB() {
       <AnimatePresence>
         {isOpen && (
           <>
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.8 }}
-              transition={{ duration: 0.2, delay: 0.15 }}
-            >
-              <Button
-                variant="secondary"
-                size="icon"
-                className="h-12 w-12 rounded-full shadow-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700"
-                onClick={() => handleAction(openNote)}
-              >
-                <StickyNote className="h-5 w-5 text-yellow-600" />
-                <span className="sr-only">Quick Note</span>
-              </Button>
-            </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.8 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}

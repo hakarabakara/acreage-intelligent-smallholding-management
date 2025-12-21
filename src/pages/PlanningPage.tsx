@@ -16,7 +16,6 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { PlanDetailsSheet } from '@/components/planning/PlanDetailsSheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { EmptyState } from '@/components/ui/empty-state';
 export function PlanningPage() {
   const [plans, setPlans] = useState<BudgetPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,13 +99,6 @@ export function PlanningPage() {
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
         </div>
-      ) : plans.length === 0 ? (
-        <EmptyState
-          icon={Calculator}
-          title="No budget plans found"
-          description="Create a plan to track expenses and schedule activities."
-          action={<Button onClick={() => setIsDialogOpen(true)} variant="outline">Create First Plan</Button>}
-        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {plans.map(plan => {
@@ -169,6 +161,14 @@ export function PlanningPage() {
               </Card>
             );
           })}
+          {plans.length === 0 && (
+            <div className="col-span-full text-center py-12 border border-dashed rounded-lg bg-muted/10">
+              <Calculator className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
+              <h3 className="text-lg font-medium text-muted-foreground">No budget plans found</h3>
+              <p className="text-sm text-muted-foreground mb-4">Create a plan to track expenses and schedule activities.</p>
+              <Button onClick={() => setIsDialogOpen(true)} variant="outline">Create First Plan</Button>
+            </div>
+          )}
         </div>
       )}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -190,7 +190,7 @@ export function PlanningPage() {
               <Label>Total Budget ($)</Label>
               <Input 
                 type="number" 
-                placeholder="0.00"
+                placeholder="0.00" 
                 value={newPlan.totalBudget || ''}
                 onChange={(e) => setNewPlan({...newPlan, totalBudget: Number(e.target.value)})}
               />
@@ -216,7 +216,7 @@ export function PlanningPage() {
             <div className="space-y-2">
               <Label>Status</Label>
               <Select 
-                value={newPlan.status}
+                value={newPlan.status} 
                 onValueChange={(v: any) => setNewPlan({...newPlan, status: v})}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>

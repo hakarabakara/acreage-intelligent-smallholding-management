@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -9,11 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { MapPin, HeartPulse, Plus, Trash2, Syringe, Stethoscope, Activity, Edit, Dna, Archive } from 'lucide-react';
+import { MapPin, HeartPulse, Plus, Trash2, Syringe, Stethoscope, Activity, Edit, Dna, Archive, AlertTriangle } from 'lucide-react';
 import type { Livestock, Field, HealthLog } from '@shared/types';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 interface LivestockDetailsSheetProps {
   livestock: Livestock | null;
   isOpen: boolean;
@@ -24,7 +25,6 @@ interface LivestockDetailsSheetProps {
   onAddHealthLog: (log: Partial<HealthLog>) => Promise<void>;
   onDeleteHealthLog: (id: string) => Promise<void>;
   onEdit: () => void;
-  allLivestock?: Livestock[];
 }
 export function LivestockDetailsSheet({
   livestock,
@@ -35,8 +35,7 @@ export function LivestockDetailsSheet({
   onUpdateLivestock,
   onAddHealthLog,
   onDeleteHealthLog,
-  onEdit,
-  allLivestock = []
+  onEdit
 }: LivestockDetailsSheetProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
@@ -94,11 +93,6 @@ export function LivestockDetailsSheet({
       default: return <HeartPulse className="h-4 w-4 text-slate-500" />;
     }
   };
-  const getParentName = (id?: string) => {
-    if (!id) return '--';
-    const parent = allLivestock.find(l => l.tag === id || l.id === id);
-    return parent ? `${parent.tag} (${parent.type})` : id;
-  };
   return (
     <>
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -118,11 +112,9 @@ export function LivestockDetailsSheet({
               )}
             </div>
             <SheetTitle className="text-2xl">{livestock.tag}</SheetTitle>
-            <div>
-              <SheetDescription>
-                {livestock.breed} • Registered {livestock.id.slice(0, 8)}
-              </SheetDescription>
-            </div>
+            <SheetDescription>
+              {livestock.breed} • Registered {livestock.id.slice(0, 8)}
+            </SheetDescription>
           </SheetHeader>
           {isArchived && (
             <div className="mt-4 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 flex items-start gap-3">
@@ -197,11 +189,11 @@ export function LivestockDetailsSheet({
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Dam (Mother)</Label>
-                      <div className="font-medium">{getParentName(livestock.dam)}</div>
+                      <div className="font-medium">{livestock.dam || '--'}</div>
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Sire (Father)</Label>
-                      <div className="font-medium">{getParentName(livestock.sire)}</div>
+                      <div className="font-medium">{livestock.sire || '--'}</div>
                     </div>
                   </div>
                   {livestock.notes && (
@@ -232,9 +224,9 @@ export function LivestockDetailsSheet({
                         </Button>
                       ))}
                     </div>
-                    <Button
-                      variant="destructive"
-                      className="w-full"
+                    <Button 
+                      variant="destructive" 
+                      className="w-full" 
                       onClick={() => setIsArchiveDialogOpen(true)}
                       disabled={isSaving}
                     >
@@ -356,7 +348,7 @@ export function LivestockDetailsSheet({
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Reason for Archiving</Label>
-              <Select value={archiveReason} onValueChange={setArchiveReason}>
+              <Select onValueChange={setArchiveReason}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select reason" />
                 </SelectTrigger>

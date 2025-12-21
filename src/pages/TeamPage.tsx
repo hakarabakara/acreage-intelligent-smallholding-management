@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, User as UserIcon, Mail, Phone, MoreHorizontal, Trash2, Edit, Loader2, CalendarOff, CheckCircle2, Users } from 'lucide-react';
+import { Plus, Search, User as UserIcon, Mail, Phone, MoreHorizontal, Trash2, Edit, Loader2, Shield, CalendarOff, CheckCircle2 } from 'lucide-react';
 import { api } from '@/lib/api-client';
 import type { User, Transaction } from '@shared/types';
 import { toast } from 'sonner';
@@ -17,9 +17,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { TeamMemberDetailsSheet } from '@/components/team/TeamMemberDetailsSheet';
-import { UserCredentialsDialog } from '@/components/team/UserCredentialsDialog';
 import { isWithinInterval } from 'date-fns';
-import { EmptyState } from '@/components/ui/empty-state';
 const userSchema = z.object({
   name: z.string().min(2, 'Name required'),
   email: z.string().email().optional().or(z.literal('')),
@@ -37,9 +35,6 @@ export function TeamPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  // Credentials Dialog State
-  const [newUserCredentials, setNewUserCredentials] = useState<{ user: User, password: string } | null>(null);
-  const [isCredentialsOpen, setIsCredentialsOpen] = useState(false);
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
     defaultValues: {
@@ -92,11 +87,6 @@ export function TeamPage() {
       setUsers(prev => [...prev, created]);
       toast.success('User created');
       setIsDialogOpen(false);
-      // Show credentials dialog if email was provided
-      if (data.email) {
-        setNewUserCredentials({ user: created, password: 'password' });
-        setIsCredentialsOpen(true);
-      }
     } catch (error) {
       toast.error('Failed to create user');
     }
@@ -126,8 +116,8 @@ export function TeamPage() {
       toast.error('Failed to remove user');
     }
   };
-  const filteredUsers = users.filter(u => 
-    u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredUsers = users.filter(u =>
+    u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
   const getRoleBadge = (role: string) => {
@@ -169,13 +159,6 @@ export function TeamPage() {
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
         </div>
-      ) : filteredUsers.length === 0 ? (
-        <EmptyState
-          icon={Users}
-          title="No team members found"
-          description="Add staff to manage your farm operations."
-          action={<Button onClick={openCreateDialog} variant="outline">Add Member</Button>}
-        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredUsers.map((user) => {
@@ -365,13 +348,6 @@ export function TeamPage() {
         onClose={() => setIsSheetOpen(false)}
         onUpdateUser={handleUpdateUser}
         transactions={transactions}
-      />
-      {/* Credentials Dialog */}
-      <UserCredentialsDialog
-        isOpen={isCredentialsOpen}
-        onClose={() => setIsCredentialsOpen(false)}
-        user={newUserCredentials?.user || null}
-        password={newUserCredentials?.password}
       />
     </AppLayout>
   );

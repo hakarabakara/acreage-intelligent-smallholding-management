@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -6,11 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Plus, Sprout, Calendar, MapPin, Loader2, Trash2, Scale, Leaf, BookOpen, Upload, TreeDeciduous, Edit, Bug, Search, LayoutGrid, List, CheckCircle2, Circle } from 'lucide-react';
+import { Plus, Sprout, Calendar, MapPin, Loader2, Trash2, Scale, Leaf, MoreHorizontal, BookOpen, Upload, TreeDeciduous } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import type { Crop, Field, HarvestLog, Task, CropVariety, Contact, InventoryItem, InventoryCategory } from '@shared/types';
+import type { Crop, Field, HarvestLog, Task, CropVariety, Contact } from '@shared/types';
 import { toast } from 'sonner';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -18,50 +16,31 @@ import { HarvestDialog } from '@/components/crop/HarvestDialog';
 import { PlantingDialog } from '@/components/crop/PlantingDialog';
 import { CropDetailsSheet } from '@/components/crop/CropDetailsSheet';
 import { CropImportDialog } from '@/components/crop/CropImportDialog';
-import { CropVarietyDialog } from '@/components/crop/CropVarietyDialog';
-import { CropTimeline } from '@/components/crop/CropTimeline';
-import { CropDiagnostics } from '@/components/crop/CropDiagnostics';
-import { CropList } from '@/components/crop/CropList';
-import { useSearchParams } from 'react-router-dom';
-import { EmptyState } from '@/components/ui/empty-state';
-import { SelectionBar } from '@/components/ui/selection-bar';
 export function CropsPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
   const [crops, setCrops] = useState<Crop[]>([]);
   const [fields, setFields] = useState<Field[]>([]);
   const [harvests, setHarvests] = useState<HarvestLog[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [varieties, setVarieties] = useState<CropVariety[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
-  const [inventoryCategories, setInventoryCategories] = useState<InventoryCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // View State
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('active');
-  const [selectedCropIds, setSelectedCropIds] = useState<Set<string>>(new Set());
   // Dialog States
   const [isPlantingOpen, setIsPlantingOpen] = useState(false);
   const [isHarvestOpen, setIsHarvestOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [isVarietyDialogOpen, setIsVarietyDialogOpen] = useState(false);
   // Selection States
   const [selectedCrop, setSelectedCrop] = useState<Crop | null>(null);
-  const [selectedVariety, setSelectedVariety] = useState<CropVariety | null>(null);
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [cropsRes, fieldsRes, harvestsRes, tasksRes, varietiesRes, contactsRes, invRes, catsRes] = await Promise.all([
+      const [cropsRes, fieldsRes, harvestsRes, tasksRes, varietiesRes, contactsRes] = await Promise.all([
         api<{ items: Crop[] }>('/api/crops'),
         api<{ items: Field[] }>('/api/fields'),
         api<{ items: HarvestLog[] }>('/api/harvests'),
         api<{ items: Task[] }>('/api/tasks'),
         api<{ items: CropVariety[] }>('/api/crop-varieties'),
-        api<{ items: Contact[] }>('/api/contacts'),
-        api<{ items: InventoryItem[] }>('/api/inventory'),
-        api<{ items: InventoryCategory[] }>('/api/inventory-categories')
+        api<{ items: Contact[] }>('/api/contacts')
       ]);
       setCrops(cropsRes.items);
       setFields(fieldsRes.items);
@@ -69,8 +48,6 @@ export function CropsPage() {
       setTasks(tasksRes.items);
       setVarieties(varietiesRes.items);
       setContacts(contactsRes.items);
-      setInventoryItems(invRes.items);
-      setInventoryCategories(catsRes.items);
     } catch (error) {
       toast.error('Failed to load data');
     } finally {
@@ -80,23 +57,7 @@ export function CropsPage() {
   useEffect(() => {
     fetchData();
   }, []);
-  // Deep Linking Effect
-  useEffect(() => {
-    if (!isLoading && crops.length > 0) {
-      const cropId = searchParams.get('cropId');
-      if (cropId) {
-        const crop = crops.find(c => c.id === cropId);
-        if (crop) {
-          openDetails(crop);
-        }
-      }
-    }
-  }, [isLoading, crops, searchParams]);
-  const handlePlantingSave = async (
-    newCrops: Partial<Crop>[],
-    newTasks: Partial<Task>[],
-    inputs: { inventoryId: string, amount: number }[]
-  ) => {
+  const handlePlantingSave = async (newCrops: Partial<Crop>[], newTasks: Partial<Task>[]) => {
     try {
       const createdCrops: Crop[] = [];
       for (const cropData of newCrops) {
@@ -112,23 +73,6 @@ export function CropsPage() {
           body: JSON.stringify(taskData),
         });
       }
-      if (inputs.length > 0) {
-        let deductedCount = 0;
-        for (const input of inputs) {
-          const item = inventoryItems.find(i => i.id === input.inventoryId);
-          if (item) {
-            const newQuantity = Math.max(0, item.quantity - input.amount);
-            await api(`/api/inventory/${item.id}`, {
-              method: 'PUT',
-              body: JSON.stringify({ quantity: newQuantity })
-            });
-            deductedCount++;
-          }
-        }
-        if (deductedCount > 0) {
-          toast.success(`Updated stock for ${deductedCount} items`);
-        }
-      }
       toast.success(`Created ${createdCrops.length} crops and ${newTasks.length} tasks`);
       fetchData();
     } catch (error) {
@@ -136,8 +80,8 @@ export function CropsPage() {
       console.error(error);
     }
   };
-  const deleteCrop = async (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
+  const deleteCrop = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!confirm('Are you sure you want to delete this crop?')) return;
     try {
       await api(`/api/crops/${id}`, { method: 'DELETE' });
@@ -192,28 +136,6 @@ export function CropsPage() {
       toast.error('Failed to import varieties');
     }
   };
-  const handleSaveVariety = async (data: Partial<CropVariety>) => {
-    try {
-      if (selectedVariety) {
-        const updated = await api<CropVariety>(`/api/crop-varieties/${selectedVariety.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        });
-        setVarieties(prev => prev.map(v => v.id === updated.id ? updated : v));
-        toast.success('Variety updated');
-      } else {
-        const created = await api<CropVariety>('/api/crop-varieties', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        });
-        setVarieties(prev => [...prev, created]);
-        toast.success('Variety created');
-      }
-      setIsVarietyDialogOpen(false);
-    } catch (error) {
-      toast.error('Failed to save variety');
-    }
-  };
   const deleteVariety = async (id: string) => {
     if (!confirm('Delete this variety template?')) return;
     try {
@@ -224,47 +146,16 @@ export function CropsPage() {
       toast.error('Failed to delete variety');
     }
   };
-  // Bulk Actions
-  const toggleSelection = (id: string) => {
-    const newSet = new Set(selectedCropIds);
-    if (newSet.has(id)) newSet.delete(id);
-    else newSet.add(id);
-    setSelectedCropIds(newSet);
+  const getProgress = (start: number, end: number) => {
+    const total = end - start;
+    const elapsed = Date.now() - start;
+    const percent = Math.min(100, Math.max(0, (elapsed / total) * 100));
+    return percent;
   };
-  const clearSelection = () => {
-    setSelectedCropIds(new Set());
-  };
-  const handleSelectAll = (ids: string[]) => {
-    if (ids.length === 0) {
-      clearSelection();
-    } else {
-      setSelectedCropIds(new Set(ids));
-    }
-  };
-  const handleBulkAction = async (action: 'delete' | 'update', data?: any) => {
-    if (selectedCropIds.size === 0) return;
-    if (action === 'delete' && !confirm(`Delete ${selectedCropIds.size} crops?`)) return;
-    try {
-      const ids = Array.from(selectedCropIds);
-      await api('/api/crops/bulk', {
-        method: 'POST',
-        body: JSON.stringify({ ids, action, data })
-      });
-      if (action === 'delete') {
-        setCrops(prev => prev.filter(c => !selectedCropIds.has(c.id)));
-        toast.success(`Deleted ${ids.length} crops`);
-      } else if (action === 'update') {
-        setCrops(prev => prev.map(c => selectedCropIds.has(c.id) ? { ...c, ...data } : c));
-        toast.success(`Updated ${ids.length} crops`);
-      }
-      clearSelection();
-    } catch (error) {
-      toast.error('Bulk action failed');
-    }
-  };
-  const openVarietyDialog = (variety?: CropVariety) => {
-    setSelectedVariety(variety || null);
-    setIsVarietyDialogOpen(true);
+  const getDaysRemaining = (end: number) => {
+    const days = differenceInDays(end, Date.now());
+    if (days < 0) return 'Ready for harvest';
+    return `${days} days left`;
   };
   const openHarvestDialog = (crop: Crop, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -275,25 +166,8 @@ export function CropsPage() {
     setSelectedCrop(crop);
     setIsDetailsOpen(true);
   };
-  const getProgress = (start: number, end: number) => {
-    const total = end - start;
-    const elapsed = Date.now() - start;
-    return Math.min(100, Math.max(0, (elapsed / total) * 100));
-  };
-  const getDaysRemaining = (end: number) => {
-    const days = differenceInDays(end, Date.now());
-    if (days < 0) return 'Ready for harvest';
-    return `${days} days left`;
-  };
-  // Filtering
-  const filteredCrops = useMemo(() => {
-    return crops.filter(c => 
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.variety.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [crops, searchQuery]);
-  const seasonalCrops = filteredCrops.filter(c => c.status !== 'harvested' && c.classification !== 'long-term');
-  const perennialCrops = filteredCrops.filter(c => c.classification === 'long-term');
+  const seasonalCrops = crops.filter(c => c.status !== 'harvested' && c.classification !== 'long-term');
+  const perennialCrops = crops.filter(c => c.classification === 'long-term');
   return (
     <AppLayout
       title="Crop Operations"
@@ -308,55 +182,23 @@ export function CropsPage() {
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
         </div>
       ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-            <TabsList>
-              <TabsTrigger value="active">Seasonal</TabsTrigger>
-              <TabsTrigger value="perennials">Perennials</TabsTrigger>
-              <TabsTrigger value="planning">Planning</TabsTrigger>
-              <TabsTrigger value="harvests">Harvest Log</TabsTrigger>
-              <TabsTrigger value="library">Library</TabsTrigger>
-              <TabsTrigger value="diagnostics" className="flex items-center gap-2"><Bug className="h-3 w-3" /> Diagnostics</TabsTrigger>
-            </TabsList>
-            {(activeTab === 'active' || activeTab === 'perennials') && (
-              <div className="flex items-center gap-2 w-full md:w-auto">
-                <div className="relative flex-1 md:w-64">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search crops..."
-                    className="pl-9"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as any)}>
-                  <ToggleGroupItem value="grid" aria-label="Grid View"><LayoutGrid className="h-4 w-4" /></ToggleGroupItem>
-                  <ToggleGroupItem value="list" aria-label="List View"><List className="h-4 w-4" /></ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-            )}
-          </div>
+        <Tabs defaultValue="active" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="active">Seasonal</TabsTrigger>
+            <TabsTrigger value="perennials">Perennials / Long-term</TabsTrigger>
+            <TabsTrigger value="planning">Planning Calendar</TabsTrigger>
+            <TabsTrigger value="harvests">Harvest Log</TabsTrigger>
+            <TabsTrigger value="library">Crop Library</TabsTrigger>
+          </TabsList>
           {/* ACTIVE SEASONAL PLANTINGS */}
           <TabsContent value="active">
             {seasonalCrops.length === 0 ? (
-              <EmptyState
-                icon={Sprout}
-                title="No active seasonal crops"
-                description="Start by planning your first planting."
-                action={<Button onClick={() => setIsPlantingOpen(true)} variant="outline">Plan Crop</Button>}
-              />
-            ) : viewMode === 'list' ? (
-              <CropList
-                crops={seasonalCrops}
-                fields={fields}
-                onSelectCrop={openDetails}
-                onHarvest={openHarvestDialog}
-                onDelete={deleteCrop}
-                selectedIds={selectedCropIds}
-                toggleSelection={toggleSelection}
-                onSelectAll={handleSelectAll}
-                isAllSelected={seasonalCrops.length > 0 && seasonalCrops.every(c => selectedCropIds.has(c.id))}
-              />
+              <div className="text-center py-12 bg-white dark:bg-neutral-900 rounded-xl border border-dashed">
+                <Sprout className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">No active seasonal crops</h3>
+                <p className="text-muted-foreground mb-4">Start by planning your first planting.</p>
+                <Button onClick={() => setIsPlantingOpen(true)} variant="outline">Plan Crop</Button>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {seasonalCrops.map((crop) => {
@@ -442,24 +284,12 @@ export function CropsPage() {
           {/* PERENNIALS / LONG-TERM */}
           <TabsContent value="perennials">
             {perennialCrops.length === 0 ? (
-              <EmptyState
-                icon={TreeDeciduous}
-                title="No long-term crops"
-                description="Track orchards, vineyards, and perennial beds here."
-                action={<Button onClick={() => setIsPlantingOpen(true)} variant="outline">Add Perennial</Button>}
-              />
-            ) : viewMode === 'list' ? (
-              <CropList
-                crops={perennialCrops}
-                fields={fields}
-                onSelectCrop={openDetails}
-                onHarvest={openHarvestDialog}
-                onDelete={deleteCrop}
-                selectedIds={selectedCropIds}
-                toggleSelection={toggleSelection}
-                onSelectAll={handleSelectAll}
-                isAllSelected={perennialCrops.length > 0 && perennialCrops.every(c => selectedCropIds.has(c.id))}
-              />
+              <div className="text-center py-12 bg-white dark:bg-neutral-900 rounded-xl border border-dashed">
+                <TreeDeciduous className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">No long-term crops</h3>
+                <p className="text-muted-foreground mb-4">Track orchards, vineyards, and perennial beds here.</p>
+                <Button onClick={() => setIsPlantingOpen(true)} variant="outline">Add Perennial</Button>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {perennialCrops.map((crop) => {
@@ -538,7 +368,33 @@ export function CropsPage() {
           </TabsContent>
           {/* PLANNING CALENDAR */}
           <TabsContent value="planning">
-            <CropTimeline crops={crops} onSelectCrop={openDetails} />
+            <Card>
+              <CardHeader>
+                <CardTitle>Planting Schedule</CardTitle>
+                <CardDescription>Timeline of all crops and successions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6 relative pl-4 border-l-2 border-muted">
+                  {crops.sort((a, b) => a.plantingDate - b.plantingDate).map((crop) => (
+                    <div key={crop.id} className="relative pl-6 group cursor-pointer" onClick={() => openDetails(crop)}>
+                      <div className={cn(
+                        "absolute left-[-9px] top-1 h-4 w-4 rounded-full border-2 bg-background transition-colors",
+                        crop.status === 'harvested' ? "border-gray-400" : "border-emerald-500 group-hover:bg-emerald-100"
+                      )} />
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1">
+                        <h4 className="font-medium text-sm group-hover:text-emerald-600 transition-colors">{crop.name} <span className="text-muted-foreground font-normal">- {crop.variety}</span></h4>
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                          Plant: {format(crop.plantingDate, 'MMM d')}
+                        </span>
+                      </div>
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {fields.find(f => f.id === crop.fieldId)?.name} • {crop.plantingMethod || 'Direct'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
           {/* HARVEST LOG */}
           <TabsContent value="harvests">
@@ -549,11 +405,7 @@ export function CropsPage() {
               </CardHeader>
               <CardContent>
                 {harvests.length === 0 ? (
-                  <EmptyState
-                    icon={Scale}
-                    title="No harvests recorded"
-                    description="Harvest logs will appear here once recorded."
-                  />
+                  <div className="text-center py-8 text-muted-foreground">No harvests recorded yet.</div>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -604,14 +456,9 @@ export function CropsPage() {
                 <h3 className="text-lg font-medium">Crop Library</h3>
                 <p className="text-sm text-muted-foreground">Manage reusable crop templates and task schedules.</p>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setIsImportOpen(true)}>
-                  <Upload className="mr-2 h-4 w-4" /> Import CSV
-                </Button>
-                <Button onClick={() => openVarietyDialog()} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <Plus className="mr-2 h-4 w-4" /> Add Variety
-                </Button>
-              </div>
+              <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" /> Import CSV
+              </Button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {varieties.map((variety) => (
@@ -627,14 +474,9 @@ export function CropsPage() {
                           <CardDescription>{variety.variety}</CardDescription>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-blue-500" onClick={() => openVarietyDialog(variety)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500" onClick={() => deleteVariety(variety.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-500" onClick={() => deleteVariety(variety.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </CardHeader>
                   <CardContent className="text-sm space-y-2">
@@ -654,41 +496,17 @@ export function CropsPage() {
                 </Card>
               ))}
               {varieties.length === 0 && (
-                <div className="col-span-full">
-                  <EmptyState
-                    icon={BookOpen}
-                    title="Library is empty"
-                    description="Import varieties to speed up your planning."
-                    action={<Button onClick={() => setIsImportOpen(true)}>Import CSV</Button>}
-                  />
+                <div className="col-span-full text-center py-12 border border-dashed rounded-lg">
+                  <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-50" />
+                  <h3 className="text-lg font-medium">Library is empty</h3>
+                  <p className="text-muted-foreground mb-4">Import varieties to speed up your planning.</p>
+                  <Button onClick={() => setIsImportOpen(true)}>Import CSV</Button>
                 </div>
               )}
             </div>
           </TabsContent>
-          {/* DIAGNOSTICS TAB */}
-          <TabsContent value="diagnostics">
-            <CropDiagnostics />
-          </TabsContent>
         </Tabs>
       )}
-      <SelectionBar
-        count={selectedCropIds.size}
-        onClear={clearSelection}
-        label="crops selected"
-        actions={
-          <>
-            <Button size="sm" variant="secondary" onClick={() => handleBulkAction('update', { status: 'harvested' })}>
-              <CheckCircle2 className="h-4 w-4 mr-2" /> Mark Harvested
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => handleBulkAction('update', { status: 'growing' })}>
-              <Circle className="h-4 w-4 mr-2" /> Mark Growing
-            </Button>
-            <Button size="sm" variant="destructive" onClick={() => handleBulkAction('delete')}>
-              <Trash2 className="h-4 w-4 mr-2" /> Delete
-            </Button>
-          </>
-        }
-      />
       <PlantingDialog
         isOpen={isPlantingOpen}
         onClose={() => setIsPlantingOpen(false)}
@@ -696,16 +514,12 @@ export function CropsPage() {
         fields={fields}
         varieties={varieties}
         contacts={contacts}
-        inventory={inventoryItems}
-        crops={crops}
       />
       <HarvestDialog
         crop={selectedCrop}
         isOpen={isHarvestOpen}
         onClose={() => setIsHarvestOpen(false)}
         onSave={handleHarvestSave}
-        inventory={inventoryItems}
-        categories={inventoryCategories}
       />
       <CropDetailsSheet
         crop={selectedCrop}
@@ -720,12 +534,6 @@ export function CropsPage() {
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onImport={handleImportVarieties}
-      />
-      <CropVarietyDialog
-        isOpen={isVarietyDialogOpen}
-        onClose={() => setIsVarietyDialogOpen(false)}
-        onSave={handleSaveVariety}
-        variety={selectedVariety}
       />
     </AppLayout>
   );

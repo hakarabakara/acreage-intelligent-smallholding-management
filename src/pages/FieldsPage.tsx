@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, MapPin, Sprout, Ruler, MoreHorizontal, Loader2, List, Map as MapIcon, Layers, RotateCw } from 'lucide-react';
 import { api } from '@/lib/api-client';
-import type { Field, Crop, GeoPoint, Rotation, Task, Livestock } from '@shared/types';
+import type { Field, Crop, GeoPoint, Rotation } from '@shared/types';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -21,7 +22,6 @@ import { FarmMap } from '@/components/map/FarmMap';
 import { FieldDetailsSheet } from '@/components/field/FieldDetailsSheet';
 import { FieldHierarchy } from '@/components/field/FieldHierarchy';
 import { RotationManager } from '@/components/field/RotationManager';
-import { EmptyState } from '@/components/ui/empty-state';
 const fieldSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   acres: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, 'Must be a positive number'),
@@ -35,8 +35,6 @@ export function FieldsPage() {
   const [fields, setFields] = useState<Field[]>([]);
   const [crops, setCrops] = useState<Crop[]>([]);
   const [rotations, setRotations] = useState<Rotation[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [livestock, setLivestock] = useState<Livestock[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
@@ -55,18 +53,14 @@ export function FieldsPage() {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [fieldsRes, cropsRes, rotationsRes, tasksRes, livestockRes] = await Promise.all([
+      const [fieldsRes, cropsRes, rotationsRes] = await Promise.all([
         api<{ items: Field[] }>('/api/fields'),
         api<{ items: Crop[] }>('/api/crops'),
-        api<{ items: Rotation[] }>('/api/rotations'),
-        api<{ items: Task[] }>('/api/tasks'),
-        api<{ items: Livestock[] }>('/api/livestock')
+        api<{ items: Rotation[] }>('/api/rotations')
       ]);
       setFields(fieldsRes.items);
       setCrops(cropsRes.items);
       setRotations(rotationsRes.items);
-      setTasks(tasksRes.items);
-      setLivestock(livestockRes.items);
     } catch (error) {
       toast.error('Failed to load data');
       console.error(error);
@@ -96,19 +90,6 @@ export function FieldsPage() {
     }
   };
   const deleteField = async (id: string) => {
-    // Safe Delete Checks
-    const activeCrops = crops.filter(c => c.fieldId === id && c.status !== 'harvested');
-    const activeLivestock = livestock.filter(l => l.locationId === id && l.status !== 'archived');
-    const pendingTasks = tasks.filter(t => t.relatedEntityId === id && t.status !== 'done');
-    if (activeCrops.length > 0 || activeLivestock.length > 0 || pendingTasks.length > 0) {
-      const reasons = [];
-      if (activeCrops.length > 0) reasons.push(`${activeCrops.length} active crops`);
-      if (activeLivestock.length > 0) reasons.push(`${activeLivestock.length} livestock`);
-      if (pendingTasks.length > 0) reasons.push(`${pendingTasks.length} pending tasks`);
-      toast.error(`Cannot delete field. Dependencies found: ${reasons.join(', ')}. Please resolve these first.`);
-      return;
-    }
-    if (!confirm('Are you sure you want to delete this field?')) return;
     try {
       await api(`/api/fields/${id}`, { method: 'DELETE' });
       toast.success('Field deleted');
@@ -317,12 +298,12 @@ export function FieldsPage() {
           {/* OVERVIEW TAB */}
           <TabsContent value="overview">
             {fields.length === 0 ? (
-              <EmptyState
-                icon={MapPin}
-                title="No fields registered"
-                description="Start by adding your first land parcel."
-                action={<Button onClick={() => setIsDialogOpen(true)} variant="outline">Add Field</Button>}
-              />
+              <div className="text-center py-12 bg-white dark:bg-neutral-900 rounded-xl border border-dashed">
+                <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">No fields registered</h3>
+                <p className="text-muted-foreground mb-4">Start by adding your first land parcel.</p>
+                <Button onClick={() => setIsDialogOpen(true)} variant="outline">Add Field</Button>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
                 {fields.map((field) => (
@@ -394,8 +375,6 @@ export function FieldsPage() {
                 selectedFieldId={selectedFieldId || undefined}
                 onSelectField={handleFieldSelect}
                 onSaveBoundary={handleSaveBoundary}
-                livestock={livestock}
-                tasks={tasks}
               />
             </div>
           </TabsContent>
@@ -408,8 +387,8 @@ export function FieldsPage() {
           {/* ROTATIONS TAB */}
           <TabsContent value="rotations">
             <div className="animate-in fade-in duration-300">
-              <RotationManager
-                rotations={rotations}
+              <RotationManager 
+                rotations={rotations} 
                 fields={fields}
                 onCreate={handleCreateRotation}
                 onUpdate={handleUpdateRotation}
@@ -426,7 +405,6 @@ export function FieldsPage() {
         onUpdate={handleUpdateField}
         crops={crops}
         allFields={fields}
-        tasks={tasks}
       />
     </AppLayout>
   );

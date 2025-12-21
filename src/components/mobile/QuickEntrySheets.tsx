@@ -4,9 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { useQuickEntry } from '@/hooks/use-quick-entry';
-import { useScratchpadStore } from '@/lib/scratchpad-store';
 import { api } from '@/lib/api-client';
 import { toast } from 'sonner';
 import type { Crop } from '@shared/types';
@@ -18,14 +16,11 @@ export function QuickEntrySheets() {
   const closeTask = useQuickEntry(s => s.closeTask);
   const isWeatherOpen = useQuickEntry(s => s.isWeatherOpen);
   const closeWeather = useQuickEntry(s => s.closeWeather);
-  const isNoteOpen = useQuickEntry(s => s.isNoteOpen);
-  const closeNote = useQuickEntry(s => s.closeNote);
   return (
     <>
       <QuickHarvestSheet open={isHarvestOpen} onClose={closeHarvest} />
       <QuickTaskSheet open={isTaskOpen} onClose={closeTask} />
       <QuickWeatherSheet open={isWeatherOpen} onClose={closeWeather} />
-      <QuickNoteSheet open={isNoteOpen} onClose={closeNote} />
     </>
   );
 }
@@ -258,45 +253,6 @@ function QuickWeatherSheet({ open, onClose }: { open: boolean; onClose: () => vo
           <DrawerFooter>
             <Button onClick={handleSubmit} disabled={submitting}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Log'}
-            </Button>
-            <DrawerClose asChild>
-              <Button variant="outline">Cancel</Button>
-            </DrawerClose>
-          </DrawerFooter>
-        </div>
-      </DrawerContent>
-    </Drawer>
-  );
-}
-function QuickNoteSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [note, setNote] = useState('');
-  const appendNote = useScratchpadStore((state) => state.appendNote);
-  const handleSubmit = () => {
-    if (!note.trim()) return;
-    appendNote(note.trim());
-    toast.success('Note added to scratchpad');
-    setNote('');
-    onClose();
-  };
-  return (
-    <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
-      <DrawerContent>
-        <div className="mx-auto w-full max-w-sm">
-          <DrawerHeader>
-            <DrawerTitle>Quick Note</DrawerTitle>
-            <DrawerDescription>Jot down an observation or idea.</DrawerDescription>
-          </DrawerHeader>
-          <div className="p-4">
-            <Textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Type your note here..."
-              className="min-h-[150px]"
-            />
-          </div>
-          <DrawerFooter>
-            <Button onClick={handleSubmit} disabled={!note.trim()}>
-              Save Note
             </Button>
             <DrawerClose asChild>
               <Button variant="outline">Cancel</Button>

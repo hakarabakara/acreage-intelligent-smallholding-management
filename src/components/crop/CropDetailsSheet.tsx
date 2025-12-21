@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -9,13 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sprout, Calendar, Image as ImageIcon, Ruler, Plus, Trash2, TreeDeciduous, Tag, DollarSign, Briefcase, TrendingUp, TrendingDown, HelpCircle, Calculator } from 'lucide-react';
+import { Sprout, Calendar, Image as ImageIcon, Ruler, Plus, Trash2, TreeDeciduous, Tag, DollarSign, Briefcase } from 'lucide-react';
 import type { Crop, Task, HarvestLog, Contact } from '@shared/types';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { ImageUpload } from '@/components/ui/image-upload';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useFormatting } from '@/hooks/use-formatting';
 interface CropDetailsSheetProps {
   crop: Crop | null;
   isOpen: boolean;
@@ -30,19 +28,12 @@ export function CropDetailsSheet({ crop, isOpen, onClose, onUpdate, tasks, harve
   const [editCost, setEditCost] = useState<string>('');
   const [editContactId, setEditContactId] = useState<string>('');
   const [isEditingFinancials, setIsEditingFinancials] = useState(false);
-  const [estUnitPrice, setEstUnitPrice] = useState<string>('');
-  const { formatCurrency } = useFormatting();
   React.useEffect(() => {
     if (crop) {
       setEditCost(crop.cost?.toString() || '');
       setEditContactId(crop.contactId || '');
     }
   }, [crop]);
-  // Filter tasks related to this crop
-  const relatedTasks = useMemo(() => {
-    if (!crop) return [];
-    return tasks.filter(t => t.relatedEntityId === crop.id);
-  }, [crop, tasks]);
   if (!crop) return null;
   const handleUploadPhoto = async (url: string) => {
     setIsSaving(true);
@@ -75,20 +66,6 @@ export function CropDetailsSheet({ crop, isOpen, onClose, onUpdate, tasks, harve
   const progress = Math.min(100, Math.max(0, (daysElapsed / (crop.daysToMaturity || 60)) * 100));
   const isPerennial = crop.classification === 'long-term';
   const supplierName = contacts.find(c => c.id === crop.contactId)?.name;
-  // Financial Calculations
-  const initialCost = crop.cost || 0;
-  const laborCost = relatedTasks.reduce((sum, t) => {
-    const taskLabor = (t.cost || 0) + (t.externalAssignments?.reduce((s, a) => s + a.cost, 0) || 0);
-    return sum + taskLabor;
-  }, 0);
-  const materialCost = relatedTasks.reduce((sum, t) => {
-    return sum + (t.materials?.reduce((s, m) => s + (m.cost || 0), 0) || 0);
-  }, 0);
-  const totalCost = initialCost + laborCost + materialCost;
-  const expectedYield = crop.expectedYield || 0;
-  const projectedRevenue = expectedYield * (Number(estUnitPrice) || 0);
-  const netMargin = projectedRevenue - totalCost;
-  const isProfitable = netMargin >= 0;
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
@@ -105,7 +82,7 @@ export function CropDetailsSheet({ crop, isOpen, onClose, onUpdate, tasks, harve
           </div>
           <SheetTitle className="text-2xl">{crop.name}</SheetTitle>
           <SheetDescription>
-            {crop.variety} • Planted {format(crop.plantingDate, 'MMM d, yyyy')}
+            {crop.variety} ��� Planted {format(crop.plantingDate, 'MMM d, yyyy')}
           </SheetDescription>
         </SheetHeader>
         <Tabs defaultValue="overview" className="mt-6">
@@ -159,27 +136,26 @@ export function CropDetailsSheet({ crop, isOpen, onClose, onUpdate, tasks, harve
                 </CardTitle>
                 {!isEditingFinancials && (
                   <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setIsEditingFinancials(true)}>
-                    Edit Cost
+                    Edit
                   </Button>
                 )}
               </CardHeader>
               <CardContent>
                 {isEditingFinancials ? (
-                  <div className="space-y-3 mb-4 p-3 bg-muted/30 rounded-lg">
+                  <div className="space-y-3">
                     <div className="space-y-1">
-                      <Label className="text-xs">Initial Cost ($)</Label>
+                      <Label className="text-xs">Cost ($)</Label>
                       <Input
                         type="number"
                         value={editCost}
                         onChange={(e) => setEditCost(e.target.value)}
                         placeholder="0.00"
-                        className="h-8"
                       />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Supplier</Label>
                       <Select value={editContactId} onValueChange={setEditContactId}>
-                        <SelectTrigger className="h-8">
+                        <SelectTrigger>
                           <SelectValue placeholder="Select supplier" />
                         </SelectTrigger>
                         <SelectContent>
@@ -191,70 +167,25 @@ export function CropDetailsSheet({ crop, isOpen, onClose, onUpdate, tasks, harve
                       </Select>
                     </div>
                     <div className="flex gap-2 pt-2">
-                      <Button size="sm" onClick={handleSaveFinancials} disabled={isSaving} className="h-7 text-xs">Save</Button>
-                      <Button size="sm" variant="ghost" onClick={() => setIsEditingFinancials(false)} className="h-7 text-xs">Cancel</Button>
+                      <Button size="sm" onClick={handleSaveFinancials} disabled={isSaving}>Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setIsEditingFinancials(false)}>Cancel</Button>
                     </div>
                   </div>
-                ) : null}
-                <div className="space-y-4">
-                  {/* Cost Breakdown */}
+                ) : (
                   <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="p-2 bg-red-50 dark:bg-red-950/20 rounded border border-red-100 dark:border-red-900">
-                      <div className="text-xs text-red-600/80 dark:text-red-400/80 mb-1">Total Cost</div>
-                      <div className="font-bold text-red-700 dark:text-red-400">{formatCurrency(totalCost)}</div>
-                      <div className="text-[10px] text-muted-foreground mt-1 flex flex-col">
-                        <span>Initial: {formatCurrency(initialCost)}</span>
-                        <span>Labor: {formatCurrency(laborCost)}</span>
-                        <span>Materials: {formatCurrency(materialCost)}</span>
-                      </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Cost</Label>
+                      <div className="font-medium">{crop.cost ? `${crop.cost.toFixed(2)}` : '--'}</div>
                     </div>
-                    <div className="p-2 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-100 dark:border-blue-900">
-                      <div className="text-xs text-blue-600/80 dark:text-blue-400/80 mb-1 flex items-center gap-1">
-                        Proj. Revenue
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger><HelpCircle className="h-3 w-3" /></TooltipTrigger>
-                            <TooltipContent>Expected Yield × Est. Price</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                      <div className="font-bold text-blue-700 dark:text-blue-400">{formatCurrency(projectedRevenue)}</div>
-                      <div className="mt-1">
-                         <div className="flex items-center gap-1">
-                           <span className="text-[10px] text-muted-foreground whitespace-nowrap">@</span>
-                           <Input
-                             type="number"
-                             className="h-5 w-16 text-[10px] px-1 py-0 bg-white dark:bg-black border-blue-200"
-                             placeholder="Price"
-                             value={estUnitPrice}
-                             onChange={(e) => setEstUnitPrice(e.target.value)}
-                           />
-                           <span className="text-[10px] text-muted-foreground">/{crop.yieldUnit || 'unit'}</span>
-                         </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Supplier</Label>
+                      <div className="font-medium flex items-center gap-1">
+                        {crop.contactId ? <Briefcase className="h-3 w-3 text-muted-foreground" /> : null}
+                        {supplierName || '--'}
                       </div>
                     </div>
                   </div>
-                  {/* Net Margin */}
-                  <div className={cn(
-                    "flex items-center justify-between p-3 rounded-lg border",
-                    isProfitable ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900" : "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900"
-                  )}>
-                    <div className="flex items-center gap-2">
-                      <Calculator className={cn("h-4 w-4", isProfitable ? "text-emerald-600" : "text-amber-600")} />
-                      <span className={cn("text-sm font-medium", isProfitable ? "text-emerald-800 dark:text-emerald-300" : "text-amber-800 dark:text-amber-300")}>
-                        Net Margin
-                      </span>
-                    </div>
-                    <div className={cn("font-bold", isProfitable ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
-                      {isProfitable ? '+' : ''}{formatCurrency(netMargin)}
-                    </div>
-                  </div>
-                  {/* Supplier Info */}
-                  <div className="text-xs text-muted-foreground flex items-center gap-1 pt-2 border-t">
-                    <Briefcase className="h-3 w-3" />
-                    Supplier: <span className="font-medium text-foreground">{supplierName || 'None linked'}</span>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
             {crop.spacing && (
@@ -313,13 +244,10 @@ export function CropDetailsSheet({ crop, isOpen, onClose, onUpdate, tasks, harve
             <div>
               <h4 className="font-medium mb-2 text-sm">Related Tasks</h4>
               <div className="space-y-2">
-                {relatedTasks.length > 0 ? relatedTasks.map(t => (
+                {tasks.length > 0 ? tasks.map(t => (
                   <div key={t.id} className="flex items-center justify-between p-2 border rounded text-sm">
                     <span className={t.status === 'done' ? 'line-through text-muted-foreground' : ''}>{t.title}</span>
-                    <div className="flex items-center gap-2">
-                      {t.cost && <span className="text-xs text-muted-foreground">${t.cost}</span>}
-                      <Badge variant="outline">{t.status}</Badge>
-                    </div>
+                    <Badge variant="outline">{t.status}</Badge>
                   </div>
                 )) : <p className="text-sm text-muted-foreground">No tasks linked.</p>}
               </div>

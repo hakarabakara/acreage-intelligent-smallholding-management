@@ -14,16 +14,14 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Calendar, User as UserIcon, Trash2, Edit, MapPin, Briefcase, DollarSign, Repeat, ListTodo } from 'lucide-react';
+import { Calendar, User as UserIcon, Trash2, Edit, MapPin, Briefcase, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import type { Task, TaskStatus, User, Field, TaskCategory } from '@shared/types';
+import type { Task, TaskStatus, User, Field } from '@shared/types';
 interface TaskBoardProps {
   tasks: Task[];
   users: User[];
   fields: Field[];
-  categories: TaskCategory[];
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void;
   onDeleteTask: (taskId: string) => void;
   onEditTask: (task: Task) => void;
@@ -34,7 +32,7 @@ const COLUMNS: { id: TaskStatus; title: string; color: string }[] = [
   { id: 'review', title: 'Review', color: 'bg-purple-50 dark:bg-purple-950/20' },
   { id: 'done', title: 'Done', color: 'bg-emerald-50 dark:bg-emerald-950/20' },
 ];
-export function TaskBoard({ tasks, users, fields, categories, onStatusChange, onDeleteTask, onEditTask }: TaskBoardProps) {
+export function TaskBoard({ tasks, users, fields, onStatusChange, onDeleteTask, onEditTask }: TaskBoardProps) {
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -76,7 +74,6 @@ export function TaskBoard({ tasks, users, fields, categories, onStatusChange, on
             tasks={tasks.filter((t) => t.status === col.id)}
             users={users}
             fields={fields}
-            categories={categories}
             onDeleteTask={onDeleteTask}
             onEditTask={onEditTask}
           />
@@ -84,15 +81,7 @@ export function TaskBoard({ tasks, users, fields, categories, onStatusChange, on
       </div>
       <DragOverlay>
         {activeTask ? (
-          <TaskCard 
-            task={activeTask} 
-            users={users} 
-            fields={fields} 
-            categories={categories}
-            onDeleteTask={() => {}} 
-            onEditTask={() => {}} 
-            isOverlay 
-          />
+          <TaskCard task={activeTask} users={users} fields={fields} onDeleteTask={() => {}} onEditTask={() => {}} isOverlay />
         ) : null}
       </DragOverlay>
     </DndContext>
@@ -105,11 +94,10 @@ interface TaskColumnProps {
   tasks: Task[];
   users: User[];
   fields: Field[];
-  categories: TaskCategory[];
   onDeleteTask: (id: string) => void;
   onEditTask: (task: Task) => void;
 }
-function TaskColumn({ id, title, color, tasks, users, fields, categories, onDeleteTask, onEditTask }: TaskColumnProps) {
+function TaskColumn({ id, title, color, tasks, users, fields, onDeleteTask, onEditTask }: TaskColumnProps) {
   const { setNodeRef } = useDroppable({
     id: id,
   });
@@ -136,7 +124,6 @@ function TaskColumn({ id, title, color, tasks, users, fields, categories, onDele
             task={task}
             users={users}
             fields={fields}
-            categories={categories}
             onDeleteTask={onDeleteTask}
             onEditTask={onEditTask}
           />
@@ -149,12 +136,11 @@ interface TaskCardProps {
   task: Task;
   users: User[];
   fields: Field[];
-  categories: TaskCategory[];
   onDeleteTask: (id: string) => void;
   onEditTask: (task: Task) => void;
   isOverlay?: boolean;
 }
-function TaskCard({ task, users, fields, categories, onDeleteTask, onEditTask, isOverlay }: TaskCardProps) {
+function TaskCard({ task, users, fields, onDeleteTask, onEditTask, isOverlay }: TaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     data: task,
@@ -173,10 +159,6 @@ function TaskCard({ task, users, fields, categories, onDeleteTask, onEditTask, i
   const fieldName = fields.find(f => f.id === task.relatedEntityId)?.name;
   const contractorCount = task.externalAssignments?.length || 0;
   const totalCost = (task.externalAssignments?.reduce((sum, a) => sum + a.cost, 0) || 0) + (task.cost || 0);
-  const checklistTotal = task.checklist?.length || 0;
-  const checklistCompleted = task.checklist?.filter(i => i.completed).length || 0;
-  const progress = checklistTotal > 0 ? (checklistCompleted / checklistTotal) * 100 : 0;
-  const category = categories.find(c => c.id === task.categoryId);
   return (
     <Card
       ref={setNodeRef}
@@ -223,20 +205,6 @@ function TaskCard({ task, users, fields, categories, onDeleteTask, onEditTask, i
           <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-5 border", getPriorityColor(task.priority))}>
             {task.priority}
           </Badge>
-          {category && (
-            <Badge 
-              variant="secondary" 
-              className="text-[10px] px-1.5 py-0 h-5 border text-white"
-              style={{ backgroundColor: category.color || '#6B7280' }}
-            >
-              {category.name}
-            </Badge>
-          )}
-          {task.recurrence && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 border bg-muted">
-              <Repeat className="h-3 w-3 mr-1" /> {task.recurrence}
-            </Badge>
-          )}
           {task.dueDate && (
             <div className={cn(
               "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border",
@@ -249,15 +217,6 @@ function TaskCard({ task, users, fields, categories, onDeleteTask, onEditTask, i
             </div>
           )}
         </div>
-        {checklistTotal > 0 && (
-          <div className="space-y-1">
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span className="flex items-center gap-1"><ListTodo className="h-3 w-3" /> Checklist</span>
-              <span>{checklistCompleted}/{checklistTotal}</span>
-            </div>
-            <Progress value={progress} className="h-1.5" />
-          </div>
-        )}
         <div className="flex flex-col gap-1 pt-1 border-t">
           <div className="flex items-center justify-between">
              {task.assigneeId ? (

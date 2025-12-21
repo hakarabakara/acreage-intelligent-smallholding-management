@@ -9,7 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { format } from 'date-fns';
-import type { ComplianceLog, Field, Livestock, InventoryItem } from '@shared/types';
+import type { ComplianceLog } from '@shared/types';
 const complianceSchema = z.object({
   title: z.string().min(2, 'Title required'),
   type: z.enum(['inspection', 'certification', 'training', 'incident', 'maintenance']),
@@ -19,8 +19,6 @@ const complianceSchema = z.object({
   inspector: z.string().optional(),
   nextDueDate: z.string().optional(),
   notes: z.string().optional(),
-  relatedEntityType: z.enum(['field', 'livestock', 'inventory', 'other']).optional(),
-  relatedEntityId: z.string().optional(),
 });
 type ComplianceFormValues = z.infer<typeof complianceSchema>;
 interface ComplianceDialogProps {
@@ -28,11 +26,8 @@ interface ComplianceDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<ComplianceLog>) => Promise<void>;
-  fields?: Field[];
-  livestock?: Livestock[];
-  inventory?: InventoryItem[];
 }
-export function ComplianceDialog({ log, isOpen, onClose, onSave, fields = [], livestock = [], inventory = [] }: ComplianceDialogProps) {
+export function ComplianceDialog({ log, isOpen, onClose, onSave }: ComplianceDialogProps) {
   const form = useForm<ComplianceFormValues>({
     resolver: zodResolver(complianceSchema),
     defaultValues: {
@@ -44,11 +39,8 @@ export function ComplianceDialog({ log, isOpen, onClose, onSave, fields = [], li
       inspector: '',
       nextDueDate: '',
       notes: '',
-      relatedEntityType: 'other',
-      relatedEntityId: '',
     },
   });
-  const relatedEntityType = form.watch('relatedEntityType');
   useEffect(() => {
     if (isOpen) {
       if (log) {
@@ -61,8 +53,6 @@ export function ComplianceDialog({ log, isOpen, onClose, onSave, fields = [], li
           inspector: log.inspector || '',
           nextDueDate: log.nextDueDate ? format(log.nextDueDate, 'yyyy-MM-dd') : '',
           notes: log.notes || '',
-          relatedEntityType: log.relatedEntityType || 'other',
-          relatedEntityId: log.relatedEntityId || '',
         });
       } else {
         form.reset({
@@ -74,8 +64,6 @@ export function ComplianceDialog({ log, isOpen, onClose, onSave, fields = [], li
           inspector: '',
           nextDueDate: '',
           notes: '',
-          relatedEntityType: 'other',
-          relatedEntityId: '',
         });
       }
     }
@@ -85,13 +73,12 @@ export function ComplianceDialog({ log, isOpen, onClose, onSave, fields = [], li
       ...data,
       date: new Date(data.date).getTime(),
       nextDueDate: data.nextDueDate ? new Date(data.nextDueDate).getTime() : undefined,
-      relatedEntityId: data.relatedEntityType === 'other' ? undefined : data.relatedEntityId,
     });
     onClose();
   };
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{log ? 'Edit Compliance Log' : 'New Compliance Log'}</DialogTitle>
           <DialogDescription>
@@ -190,63 +177,6 @@ export function ComplianceDialog({ log, isOpen, onClose, onSave, fields = [], li
                 </FormItem>
               )}
             />
-            {/* Related Asset Section */}
-            <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
-              <h4 className="text-sm font-medium">Related Asset (Optional)</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="relatedEntityType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Asset Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="other">None / Other</SelectItem>
-                          <SelectItem value="field">Field</SelectItem>
-                          <SelectItem value="livestock">Livestock</SelectItem>
-                          <SelectItem value="inventory">Inventory</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
-                />
-                {relatedEntityType !== 'other' && (
-                  <FormField
-                    control={form.control}
-                    name="relatedEntityId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Select Item</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Choose item..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {relatedEntityType === 'field' && fields.map(f => (
-                              <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                            ))}
-                            {relatedEntityType === 'livestock' && livestock.map(l => (
-                              <SelectItem key={l.id} value={l.id}>{l.tag} ({l.type})</SelectItem>
-                            ))}
-                            {relatedEntityType === 'inventory' && inventory.map(i => (
-                              <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                  />
-                )}
-              </div>
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}

@@ -18,7 +18,6 @@ export function CropImportDialog({ isOpen, onClose, onImport }: CropImportDialog
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<'input' | 'preview'>('input');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const handleParse = () => {
     if (!csvText.trim()) {
       setError('Please enter CSV data.');
@@ -26,74 +25,49 @@ export function CropImportDialog({ isOpen, onClose, onImport }: CropImportDialog
     }
     try {
       const lines = csvText.split('\n').filter(line => line.trim() !== '');
-      if (lines.length < 2) {
-        throw new Error('CSV must contain a header row and at least one data row.');
-      }
       const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
       // Basic validation of headers
       if (!headers.includes('name') || !headers.includes('days')) {
         throw new Error('CSV must contain "Name" and "Days" columns.');
       }
       const data: Partial<CropVariety>[] = [];
-      const errors: string[] = [];
       for (let i = 1; i < lines.length; i++) {
+        // Handle quoted fields simply (not robust for all CSV edge cases but good for templates)
+        // For robust parsing, a library like PapaParse is recommended, but we'll do a simple split for now
+        // assuming no commas in fields for this simple template import.
         const values = lines[i].split(',').map(v => v.trim());
-        // Skip empty lines
-        if (values.length === 1 && values[0] === '') continue;
-        if (values.length < headers.length) {
-          errors.push(`Row ${i + 1}: Insufficient columns.`);
-          continue;
-        }
+        if (values.length < headers.length) continue;
         const item: any = {};
         const tasks: { type: string; dayOffset: number }[] = [];
-        let rowValid = true;
         headers.forEach((header, index) => {
           const value = values[index];
-          if (header === 'name') {
-            if (!value) {
-              errors.push(`Row ${i + 1}: Name is required.`);
-              rowValid = false;
-            }
-            item.name = value;
-          } else if (header === 'variety') {
-            item.variety = value;
-          } else if (header === 'days') {
-            const days = Number(value);
-            if (isNaN(days) || days <= 0) {
-              errors.push(`Row ${i + 1}: "Days" must be a positive number.`);
-              rowValid = false;
-            }
-            item.daysToMaturity = days;
-          } else if (header === 'method') {
-            item.plantingMethod = value.toLowerCase() === 'transplant' ? 'transplant' : 'direct';
-          } else if (header === 'season') {
-            item.preferredSeason = value;
-          } else if (header === 'notes') {
-            item.notes = value;
-          } else if (header === 'tasks') {
+          if (header === 'name') item.name = value;
+          else if (header === 'variety') item.variety = value;
+          else if (header === 'days') item.daysToMaturity = Number(value) || 60;
+          else if (header === 'method') item.plantingMethod = value.toLowerCase() === 'transplant' ? 'transplant' : 'direct';
+          else if (header === 'season') item.preferredSeason = value;
+          else if (header === 'notes') item.notes = value;
+          else if (header === 'tasks') {
+            // Parse tasks: "Transplant:21;Weed:30"
             if (value) {
               value.split(';').forEach(t => {
                 const [type, offset] = t.split(':');
                 if (type && offset) {
-                  const offsetNum = Number(offset);
-                  if (!isNaN(offsetNum)) {
-                    tasks.push({ type: type.trim(), dayOffset: offsetNum });
-                  }
+                  tasks.push({ type: type.trim(), dayOffset: Number(offset) });
                 }
               });
             }
           }
         });
-        if (rowValid) {
+        if (item.name) {
           item.defaultTasks = tasks;
           data.push(item);
         }
       }
       if (data.length === 0) {
-        throw new Error('No valid data found. Please check your CSV format.');
+        throw new Error('No valid data found.');
       }
       setParsedData(data);
-      setValidationErrors(errors);
       setStep('preview');
       setError(null);
     } catch (err: any) {
@@ -108,7 +82,6 @@ export function CropImportDialog({ isOpen, onClose, onImport }: CropImportDialog
       setStep('input');
       setCsvText('');
       setParsedData([]);
-      setValidationErrors([]);
     } catch (err) {
       setError('Failed to import data.');
     } finally {
@@ -150,28 +123,10 @@ export function CropImportDialog({ isOpen, onClose, onImport }: CropImportDialog
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-600">
-                <CheckCircle2 className="h-5 w-5" />
-                <span className="font-medium">Ready to import {parsedData.length} items</span>
-              </div>
-              {validationErrors.length > 0 && (
-                <div className="text-sm text-amber-600 flex items-center gap-1">
-                  <AlertCircle className="h-4 w-4" />
-                  {validationErrors.length} issues found (skipped)
-                </div>
-              )}
+            <div className="flex items-center gap-2 text-emerald-600">
+              <CheckCircle2 className="h-5 w-5" />
+              <span className="font-medium">Ready to import {parsedData.length} items</span>
             </div>
-            {validationErrors.length > 0 && (
-              <Alert variant="destructive" className="py-2">
-                <AlertTitle className="text-sm font-medium">Skipped Rows:</AlertTitle>
-                <ScrollArea className="h-20">
-                  <ul className="list-disc list-inside text-xs">
-                    {validationErrors.map((err, i) => <li key={i}>{err}</li>)}
-                  </ul>
-                </ScrollArea>
-              </Alert>
-            )}
             <ScrollArea className="h-[300px] border rounded-md">
               <Table>
                 <TableHeader>
