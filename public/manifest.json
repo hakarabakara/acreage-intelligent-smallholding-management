@@ -1,0 +1,22 @@
+{
+  "name": "Acreage - Intelligent Smallholding Management",
+  "short_name": "Acreage",
+  "description": "A premium, all-in-one farm management platform for smallholders.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#10B981",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://pub-b7fd9c30cd6c449398405da81eb6d676.r2.dev/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://pub-b7fd9c30cd6c449398405da81eb6d676.r2.dev/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
